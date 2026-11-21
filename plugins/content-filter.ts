@@ -19,9 +19,12 @@ import { defect } from "./warn.ts";
 // - 公開日（date）が日本時間の今日より後の予約投稿（開発サーバーでは除外しない）
 // - パスに `.` を含む記事（スラッグが静的ファイルの URL として扱われ、プリレンダリングされないため）
 // - `*/page/**`（著者ページのページ送り `/@<著者ID>/page/<番号>` と衝突する）
+// - 隠しファイルと隠しディレクトリ（検査では読み飛ばすが、@nuxt/content は `dot: true` で収集するため、予約投稿などの検査を通らずに公開されてしまう）
 // また、許可されていない拡張子のファイル（allowed-files.ts）は、警告する（読み込まず、公開もしない）
 const maxTextSize = 2 * 1024 * 1024;
 const escape = (path: string) => path.replace(/[[\]{}()*?!]/g, "\\$&");
+// `.` で始まる名前のファイルと、その下のすべて（micromatch の ignore は dot: true でも、パターンが `.` で始まれば一致する）
+const hidden = ["**/.*", "**/.*/**"];
 
 // 通常のファイルだけを、大きさの上限つきで読む（それ以外は null）
 export const readText = (path: string) => {
@@ -48,15 +51,21 @@ const parseYaml = (text: string): Record<string, unknown> | null => {
   }
 };
 
+// YAML から不可視文字を取り除く（@nuxt/content の解析前に、content-hook.ts が行うのと同じ規則）
+const cleanYaml = (text: string) => {
+  const cleanText = cleanTextUnicode(text);
+  const cleaned = cleanYamlSource(cleanText.value);
+  return { value: cleaned.value, changed: cleanText.changed || cleaned.changed };
+};
+
 const profileOf = (dir: string) => {
   for (const file of ["profile.yaml", "profile.yml"]) {
     const path = join(dir, file);
     if (existsSync(path)) {
       const text = readText(path);
       if (text === null) return null;
-      const cleanText = cleanTextUnicode(text);
-      const cleaned = cleanYamlSource(cleanText.value);
-      if (cleanText.changed || cleaned.changed) defect("プロフィールの不可視文字を取り除きました", path);
+      const cleaned = cleanYaml(text);
+      if (cleaned.changed) defect("プロフィールの不可視文字を取り除きました", path);
       return parseYaml(cleaned.value);
     }
   }
@@ -75,8 +84,8 @@ export const validAuthor = (contents: string, name: string) => {
 };
 
 export const excludedFiles = (contents: string, { scheduled = true }: { scheduled?: boolean } = {}) => {
-  const posts = ["*/page/**"];
-  const profiles: string[] = [];
+  const posts = ["*/page/**", ...hidden];
+  const profiles = [...hidden];
   const limit = today();
   // contents/ がない場合（記事を取得していない環境）は、何も除外しない
   const entries = existsSync(contents) ? readdirSync(contents, { withFileTypes: true }) : [];
@@ -153,6 +162,8 @@ export const excludedFiles = (contents: string, { scheduled = true }: { schedule
     const slugs = new Map<string, string>();
     const duplicates = new Set<string>();
     for (const path of markdown.slice().sort()) {
+      // 公開しない拡張子（`.MD` など）は、重複の検査に登録しない（先に登録すると、同じ名前の `.md` が重複として除外される）
+      if (!path.endsWith(".md")) continue;
       const slug = path.slice(0, -extensionOf(path).length);
       if (!slug.split(/[\\/]/).every(validIdentifier)) continue;
       const previous = duplicateOf(slugs, slug, path);
@@ -181,7 +192,8 @@ export const excludedFiles = (contents: string, { scheduled = true }: { schedule
       const path = join(dir, file);
       if (!existsSync(path)) continue;
       const text = readText(path);
-      if (text === null || parseYaml(text) === null) {
+      // 著者の検査（profileOf）と同じく、不可視文字を取り除いてから解析する
+      if (text === null || parseYaml(cleanYaml(text).value) === null) {
         profiles.push(`${escape(name)}/${file}`);
         defect(`プロフィールの YAML が不正なため、使いません: ${name}/${file}`, `${authorsPath}/${name}/${file}`);
       }
