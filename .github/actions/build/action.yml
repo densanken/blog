@@ -1,0 +1,95 @@
+name: build
+description: Build the blog (scan contents, fetch icons, generate the site and scan the output). The caller checks out the blog at the workspace root and uploads .output/public
+inputs:
+  contents-dir:
+    description: Directory of the contents (the root of blog-contents). If it is not "contents", it is copied to contents
+    default: contents
+  strict:
+    description: Fail the build if the contents have a defect, and fail the scans if ClamAV detects a virus
+    default: "false"
+  preview:
+    description: Build for a preview (include scheduled posts, hide from search engines, show a banner)
+    default: "false"
+  site-url:
+    description: URL of the site (required if preview is true)
+    default: ""
+  preview-pr:
+    description: Pull request number shown in the preview banner
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Set up
+      uses: ./.github/actions/setup
+
+    - name: Allow Chromium sandbox user namespaces
+      shell: bash
+      run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+    - name: Install Chromium for Mermaid
+      shell: bash
+      run: pnpm exec playwright install --with-deps chromium
+
+    - name: Use the contents directory
+      if: inputs.contents-dir != 'contents'
+      shell: bash
+      env:
+        CONTENTS_DIR: ${{ inputs.contents-dir }}
+      run: |
+        rm -rf contents
+        cp -a "$CONTENTS_DIR" contents
+
+    - name: Delete symbolic links in contents
+      uses: ./.github/actions/symlinks
+
+    - name: Set up ClamAV
+      uses: ./.github/actions/clamav
+
+    # 記事の内容をビルドの前にスキャンする（ウイルスが見つかったファイルは、削除して警告し、ビルドを続ける）
+    - name: Scan contents
+      uses: ./.github/actions/scan
+      with:
+        path: contents
+        strict: ${{ inputs.strict }}
+
+    - name: Fetch profile icons
+      shell: bash
+      run: pnpm fetch-icons
+      env:
+        CONTENT_STRICT: ${{ inputs.strict == 'true' && '1' || '' }}
+
+    - name: Scan profile icons
+      uses: ./.github/actions/scan
+      with:
+        path: .cache/icons
+        strict: ${{ inputs.strict }}
+
+    # 厳格モードで不備があっても出力のスキャンのために最後まで進め、スキャンのあとに失敗にする
+    - name: Build
+      id: build
+      shell: bash
+      run: |
+        set +e
+        pnpm build:site
+        echo "code=$?" >> "$GITHUB_OUTPUT"
+        if [ -d .output/public ]; then echo "output=true" >> "$GITHUB_OUTPUT"; fi
+      env:
+        CONTENT_STRICT: ${{ inputs.strict == 'true' && '1' || '' }}
+        PREVIEW: ${{ inputs.preview == 'true' && '1' || '' }}
+        PREVIEW_PR: ${{ inputs.preview-pr }}
+        SITE_URL: ${{ inputs.site-url }}
+
+    # 変換した画像やリンクカードの画像を含むビルドの出力をスキャンする（見つかったファイルを削除して警告する）
+    - name: Scan build output
+      if: steps.build.outputs.output == 'true'
+      uses: ./.github/actions/scan
+      with:
+        path: .output/public
+        strict: ${{ inputs.strict }}
+
+    - name: Fail if the build failed
+      if: steps.build.outputs.code != '0'
+      shell: bash
+      run: |
+        echo "::error::ビルドが失敗しました（終了コード ${{ steps.build.outputs.code }}）"
+        exit 1

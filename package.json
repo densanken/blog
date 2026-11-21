@@ -1,0 +1,49 @@
+{
+  "name": "blog",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fetch-icons": "node scripts/fetch-icons.ts",
+    "build:site": "nuxt generate && node scripts/check-generated-links.ts && node scripts/prune-cards.ts && pagefind --site .output/public",
+    "build": "pnpm fetch-icons && pnpm build:site",
+    "dev": "nuxt dev",
+    "generate": "pnpm build",
+    "preview": "serve .output/public",
+    "typecheck": "nuxt typecheck && tsc -p tsconfig.test.json",
+    "lint": "pnpm typecheck && eslint --fix && oxfmt --disable-nested-config",
+    "lint:check": "pnpm typecheck && eslint",
+    "fmt": "oxfmt --disable-nested-config",
+    "fmt:check": "oxfmt --check --disable-nested-config",
+    "check": "pnpm typecheck && eslint && oxfmt --check --disable-nested-config",
+    "test": "vitest run src/test/unit",
+    "test:build": "node src/test/build.ts",
+    "test:e2e": "pnpm test:build && node src/test/e2e.ts",
+    "postinstall": "nuxt prepare",
+    "prepare": "git config --local push.recurseSubmodules check"
+  },
+  "packageManager": "pnpm@12.21.0+sha512.66fd8278ee28935ce951792d34367ff3af5c432a2756445823029533835b8da529bbe0be5130afd56ed0713fb8789e47bad82d93bd5ae2fe54b15562d6276ef0",
+  "dependencies": {
+    "@nuxt/content": "^3.17.0",
+    "cheerio": "^1.2.0",
+    "nuxt": "^4.6.4",
+    "pagefind": "^1.6.0",
+    "playwright": "^1.65.1",
+    "undici": "^8.12.4",
+    "vue": "^3.5.45",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
+    "@stylistic/eslint-plugin": "^6.0.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "lefthook": "^2.2.2",
+    "oxfmt": "^0.79.0",
+    "serve": "^14.2.8",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
+  }
+}

@@ -1,0 +1,25 @@
+name: clamav
+description: Install ClamAV and update its signatures (run once per job; the signature database is cached by date)
+runs:
+  using: composite
+  steps:
+    - name: Get date for the ClamAV database cache
+      id: date
+      shell: bash
+      run: echo "value=$(date +%F)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache ClamAV signatures
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/clamav-db
+        key: clamav-${{ steps.date.outputs.value }}
+        restore-keys: clamav-
+
+    - name: Install ClamAV and update signatures
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends clamav
+        mkdir -p ~/clamav-db
+        printf 'DatabaseMirror database.clamav.net\nDatabaseDirectory %s\n' ~/clamav-db > ~/freshclam.conf
+        freshclam --config-file ~/freshclam.conf

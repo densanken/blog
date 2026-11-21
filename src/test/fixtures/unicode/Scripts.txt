@@ -1,0 +1,21 @@
+# Test dictionary (subset of Unicode Scripts.txt)
+0041..005A    ; Latin # test
+0061..007A    ; Latin # test
+00AA          ; Latin # test
+00D8..00F6    ; Latin # test
+0400..0481    ; Cyrillic # test
+048A..052F    ; Cyrillic # test
+0560..0588    ; Armenian # test
+0620..063F    ; Arabic # test
+0904..0939    ; Devanagari # test
+094D          ; Devanagari # test
+0D12..0D3A    ; Malayalam # test
+0D4D          ; Malayalam # test
+0E01..0E30    ; Thai # test
+10D0..10FA    ; Georgian # test
+3041..3096    ; Hiragana # test
+30A1..30FA    ; Katakana # test
+4E00..9FFF    ; Han # test
+FF21..FF3A    ; Latin # test
+FF41..FF5A    ; Latin # test
+20000..2A6DF  ; Han # test

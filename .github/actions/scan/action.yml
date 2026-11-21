@@ -1,0 +1,71 @@
+name: scan
+description: Scan a path with ClamAV (requires the clamav action to have run in the job)
+inputs:
+  path:
+    description: Path to scan
+    required: true
+  strict:
+    description: Fail if ClamAV detects a virus (the file is removed first) or cannot scan
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Scan ${{ inputs.path }}
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        STRICT: ${{ inputs.strict }}
+      run: |
+        args=(--database ~/clamav-db --recursive --infected --no-summary --exclude-dir='/\.git$')
+        args+=(--remove)
+        set +e
+        out=$(clamscan "${args[@]}" "$SCAN_PATH" 2>&1)
+        code=$?
+        set -e
+        escape_data() {
+          local value=$1
+          value=${value//'%'/'%25'}
+          value=${value//$'\r'/'%0D'}
+          value=${value//$'\n'/'%0A'}
+          printf '%s' "$value"
+        }
+        escape_property() {
+          local value
+          value=$(escape_data "$1")
+          value=${value//':'/'%3A'}
+          value=${value//','/'%2C'}
+          printf '%s' "$value"
+        }
+        if [ -n "$out" ]; then printf 'ClamAV: %s\n' "$(escape_data "$out")"; fi
+        failed=0
+        found=0
+        while IFS= read -r line; do
+          case "$line" in
+            "ERROR: Can't remove file '"*)
+              failed=1
+              path=$(escape_property "$SCAN_PATH")
+              echo "::warning file=${path}::ClamAV could not remove an infected file"
+              ;;
+            *" FOUND")
+              found=1
+              raw_file=${line%: *}
+              file=$(escape_property "$raw_file")
+              detection=$(escape_data "${line##*: }")
+              if [ -e "$raw_file" ]; then
+                failed=1
+                echo "::warning file=${file}::ウイルスを検出しましたが削除できません（${detection}）。"
+              else
+                echo "::warning file=${file}::ウイルスを検出したため削除しました（${detection}）。"
+              fi
+              ;;
+          esac
+        done <<< "$out"
+        if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+          path=$(escape_property "$SCAN_PATH")
+          echo "::warning file=${path}::ClamAV のスキャンでエラーが発生しました（終了コード ${code}）。"
+          # 厳格モードでは、スキャンできなかったものを通さない
+          if [ "$STRICT" = true ]; then failed=1; fi
+        fi
+        # 厳格モードでは、検出したら（削除したうえで）失敗にする
+        if [ "$STRICT" = true ] && [ "$found" -ne 0 ]; then failed=1; fi
+        if [ "$failed" -ne 0 ]; then exit 1; fi
