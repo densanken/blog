@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,7 +26,7 @@ it.each([1, 2])("warns and continues when ClamAV exits with %i", (code) => {
       env: {
         ...process.env,
         PATH: `${dir}:${process.env.PATH ?? ""}`,
-        SCAN_PATH: ".",
+        SCAN_PATH: dir,
         SCAN_ARGS: join(dir, "args"),
       },
       encoding: "utf8",
@@ -122,4 +122,60 @@ it("fails when ClamAV cannot remove a file whose name contains a newline", () =>
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+const scanScript = () => {
+  const action = parse(readFileSync(".github/actions/scan/action.yml", "utf8")) as {
+    runs: { steps: { run: string }[] };
+  };
+  const script = action.runs.steps[0]?.run;
+  assert.ok(script);
+  return script;
+};
+
+// 深さ depth のディレクトリを作り、clamscan の代わりに引数を記録するスクリプトで、scan Action を実行する
+const scanDepth = (depth: number, { viaLink = false } = {}) => {
+  const dir = mkdtempSync(join(tmpdir(), "scan-test-"));
+  try {
+    writeFileSync(join(dir, "clamscan"), '#!/bin/sh\nprintf "%s\\n" "$@" > "$SCAN_ARGS"\nexit 0\n', { mode: 0o755 });
+    const root = join(dir, "root");
+    mkdirSync(join(root, ...Array<string>(depth).fill("d")), { recursive: true });
+    // 開始点がシンボリックリンクでも、リンク先の深さを調べる
+    const link = join(dir, "link");
+    if (viaLink) symlinkSync(root, link);
+    const result = spawnSync("bash", ["-c", scanScript()], {
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH ?? ""}`,
+        SCAN_PATH: viaLink ? link : root,
+        SCAN_ARGS: join(dir, "args"),
+      },
+      encoding: "utf8",
+    });
+    const args = existsSync(join(dir, "args")) ? readFileSync(join(dir, "args"), "utf8").split("\n") : undefined;
+    return { result, args };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+it("scans directories up to just below the depth limit", () => {
+  const { result, args } = scanDepth(14);
+  expect(result.status).toBe(0);
+  // clamscan は、この値以上の深さのディレクトリを検査しない（ClamAV 1.5.4 で確認）ため、上限未満の深さは、すべて検査される
+  expect(args).toContain("--max-dir-recursion=15");
+});
+
+it("fails without scanning if a directory is as deep as the limit, which ClamAV would skip silently", () => {
+  const { result, args } = scanDepth(15);
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("::error::ディレクトリの深さが上限（15）に達しています");
+  expect(args).toBeUndefined();
+});
+
+it("checks the depth behind a scan path that is a symbolic link, which clamscan follows", () => {
+  const { result, args } = scanDepth(15, { viaLink: true });
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("::error::ディレクトリの深さが上限（15）に達しています");
+  expect(args).toBeUndefined();
 });
