@@ -30,8 +30,9 @@ runs:
 
         if [ -d "$SCAN_PATH" ]; then
           # .git の中も調べる（-mindepth があると、浅い階層では -prune が評価されないため、除外できない）
+          # -H で、開始点がシンボリックリンクでもたどる（clamscan は、コマンドラインのディレクトリのリンクをたどる）
           # -quit は BSD の find にない（ローカルのテストが動かない）ため、sed で先頭の 1 件だけ取る
-          too_deep=$(find "$SCAN_PATH" -mindepth "$max_depth" -type d -print | sed -n 1p)
+          too_deep=$(find -H "$SCAN_PATH" -mindepth "$max_depth" -type d -print | sed -n 1p)
           if [ -n "$too_deep" ]; then
             echo "::error::ディレクトリの深さが上限（${max_depth}）に達しています: $(escape_data "$too_deep")"
             exit 1
