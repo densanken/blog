@@ -16,14 +16,6 @@ runs:
         SCAN_PATH: ${{ inputs.path }}
         STRICT: ${{ inputs.strict }}
       run: |
-        # 既定の --max-dir-recursion=15 を超える深さのファイルは、エラーにならず未検査になる
-        # パスの長さの上限（4096 文字）から、深さは 2048 を超えないため、すべての階層を検査できる
-        args=(--database ~/clamav-db --recursive --max-dir-recursion=2048 --infected --no-summary --exclude-dir='/\.git$')
-        args+=(--remove)
-        set +e
-        out=$(clamscan "${args[@]}" "$SCAN_PATH" 2>&1)
-        code=$?
-        set -e
         escape_data() {
           local value=$1
           value=${value//'%'/'%25'}
@@ -31,6 +23,29 @@ runs:
           value=${value//$'\n'/'%0A'}
           printf '%s' "$value"
         }
+
+        # clamscan は、--max-dir-recursion（既定は 15）以上の深さのディレクトリを、エラーにならず未検査にする
+        # そのため、先に深さを調べ、max_depth 以上のディレクトリがあれば失敗にする（未検査のファイルを通さない）
+        max_depth=15
+
+        if [ -d "$SCAN_PATH" ]; then
+          # .git の中も調べる（-mindepth があると、浅い階層では -prune が評価されないため、除外できない）
+          # -H で、開始点がシンボリックリンクでもたどる（clamscan は、コマンドラインのディレクトリのリンクをたどる）
+          # -quit は BSD の find にない（ローカルのテストが動かない）ため、sed で先頭の 1 件だけ取る
+          too_deep=$(find -H "$SCAN_PATH" -mindepth "$max_depth" -type d -print | sed -n 1p)
+          if [ -n "$too_deep" ]; then
+            echo "::error::ディレクトリの深さが上限（${max_depth}）に達しています: $(escape_data "$too_deep")"
+            exit 1
+          fi
+        fi
+
+        args=(--database ~/clamav-db --recursive --max-dir-recursion="$max_depth" --infected --no-summary --exclude-dir='/\.git$')
+        args+=(--remove)
+        set +e
+        out=$(clamscan "${args[@]}" "$SCAN_PATH" 2>&1)
+        code=$?
+        set -e
+
         escape_property() {
           local value
           value=$(escape_data "$1")
@@ -38,9 +53,11 @@ runs:
           value=${value//','/'%2C'}
           printf '%s' "$value"
         }
+
         if [ -n "$out" ]; then printf 'ClamAV: %s\n' "$(escape_data "$out")"; fi
         failed=0
         found=0
+
         while IFS= read -r line; do
           case "$line" in
             "ERROR: Can't remove file '"*)
@@ -62,12 +79,14 @@ runs:
               ;;
           esac
         done <<< "$out"
+
         if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
           path=$(escape_property "$SCAN_PATH")
           echo "::warning file=${path}::ClamAV のスキャンでエラーが発生しました（終了コード ${code}）。"
           # 厳格モードでは、スキャンできなかったものを通さない
           if [ "$STRICT" = true ]; then failed=1; fi
         fi
+
         # 厳格モードでは、検出したら（削除したうえで）失敗にする
         if [ "$STRICT" = true ] && [ "$found" -ne 0 ]; then failed=1; fi
         if [ "$failed" -ne 0 ]; then exit 1; fi
