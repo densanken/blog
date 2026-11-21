@@ -14,8 +14,8 @@ export const restoredQuoteStarts = new WeakMap<VFile, Set<number>>();
 export const invalidTwitterRanges = new WeakMap<VFile, [number, number][]>();
 
 // 引用の直後にある widgets.js の script を取り除く（埋め込みに含まれるため）
-const widgetsScript = /^\s*<script\b([^>]*)>\s*<\/script\b[^>]*>/i;
-const withoutWidgets = (html: string) => {
+const widgetsScript = /^\s*<script\b([^>]*)>\s*<\/script[^>]*>/i;
+export const withoutWidgets = (html: string) => {
   const match = widgetsScript.exec(html);
   const src = match && /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(match[1] ?? "");
   return match && widgetsSource.test(src?.[1] ?? src?.[2] ?? "") ? html.slice(match[0].length) : html;
@@ -166,7 +166,7 @@ export default () => (tree: Root, file: VFile) => {
             children[last]?.type === "html" ||
             (tailIsHtml &&
               (/^\s*<\w+\b[^>]*>[\s\S]*<\/\w+\s*>\s*$/i.test(htmlTail) ||
-                /^\s*(?:(?:<!--(?:[^-]|-(?!->))*-->|<script\b[^>]*>\s*<\/script\b[^>]*>|<\/\w+\s*>)\s*)*$/i.test(
+                /^\s*(?:(?:<!--(?:[^-]|-(?!->))*-->|<script\b[^>]*>\s*<\/script[^>]*>|<\/\w+\s*>)\s*)*$/i.test(
                   htmlTail
                 ))))
         ) {

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import embedCode from "../../../plugins/rehype-embed-code.ts";
 import embed from "../../../plugins/rehype-embed.ts";
 import sanitize from "../../../plugins/rehype-sanitize.ts";
-import blockquote, { invalidTwitterRanges } from "../../../plugins/remark-embed-blockquote.ts";
+import blockquote, { invalidTwitterRanges, withoutWidgets } from "../../../plugins/remark-embed-blockquote.ts";
 import { safeFetch } from "../../../plugins/safe-fetch.ts";
 import { stats } from "../../../plugins/warn.ts";
 
@@ -149,6 +149,32 @@ describe("embed code", () => {
       expect(other).not.toContain('"tagName":"script"');
       expect(warning).toHaveBeenCalledWith(expect.stringContaining("<script>"));
       expect(stats.defects).toBeGreaterThan(before);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+  // CodeQL（js/bad-tag-filter）が、一致しないと指摘した終了タグの書き方
+  const endTags = ["</script>", "</script >", "</script foo>", "</script\nbar>", "</SCRIPT>"];
+  it.each(endTags)("withoutWidgets removes the widgets.js script that ends with %j", (end) => {
+    const widgets = `<script async src="https://platform.x.com/widgets.js" charset="utf-8">${end}`;
+    expect(withoutWidgets(widgets)).toBe("");
+    expect(withoutWidgets(`${widgets}after`)).toBe("after");
+    // widgets.js 以外の script は、そのまま残して、sanitize に渡す
+    const other = `<script async src="https://example.com/other.js">${end}`;
+    expect(withoutWidgets(other)).toBe(other);
+  });
+  // CommonMark の HTML ブロックは、`</script>` の行で終わる（`</script >` などでは終わらない）ため、
+  // 後ろの本文まで同じ HTML ノードに入る。その場合は、script を取り除いた残りがあるので、公式のコードとして消費せず、
+  // sanitize が取り除いて報告する（どの書き方でも、script は出力に残らない）
+  it.each(endTags)("never keeps a widgets.js script that ends with %j", async (end) => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const html = await render(
+        `<blockquote class="twitter-tweet"><p>First\n\nhttps://t.co/example</p>&mdash; Name (@user) <a href="https://x.com/user/status/123">date</a></blockquote>\n<script async src="https://platform.x.com/widgets.js" charset="utf-8">${end}\n\nAfter`
+      );
+      expect(html).toContain('"tagName":"twitter-embed"');
+      expect(html).not.toContain('"tagName":"script"');
+      expect(html).toContain("After");
     } finally {
       warning.mockRestore();
     }
