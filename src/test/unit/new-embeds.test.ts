@@ -7,11 +7,46 @@ import { gist } from "../../../plugins/embeds/gist.ts";
 import { github } from "../../../plugins/embeds/github.ts";
 import { googleSlides } from "../../../plugins/embeds/google-slides.ts";
 import { twitch } from "../../../plugins/embeds/twitch.ts";
+import { twitter } from "../../../plugins/embeds/twitter.ts";
+import { youtube } from "../../../plugins/embeds/youtube.ts";
 import unicodeGuard from "../../../plugins/rehype-unicode-code.ts";
 import { safeFetch } from "../../../plugins/safe-fetch.ts";
 
 vi.mock("../../../plugins/safe-fetch.ts", () => ({ safeFetch: vi.fn() }));
 const reserve = vi.fn();
+
+describe("X posts and YouTube videos", () => {
+  it.each(["https://x.com/user/status/123abc", "https://x.com/user/status/123_4", "https://x.com/user/status/"])(
+    "rejects the post URL %s",
+    async (url) => {
+      expect(await twitter.fromUrl(new URL(url), reserve)).toBeUndefined();
+    }
+  );
+  it.each(["https://x.com/user/status/123", "https://x.com/user/status/123/", "https://x.com/user/status/123/photo/1"])(
+    "converts the post URL %s",
+    async (url) => {
+      expect(JSON.stringify(await twitter.fromUrl(new URL(url), reserve))).toContain('https://x.com/user/status/123"');
+    }
+  );
+  it.each([
+    "https://www.youtube.com/watch?v=videoseries",
+    "https://youtu.be/videoseries",
+    "https://www.youtube.com/embed/videoseries",
+    "https://www.youtube.com/shorts/videoseries",
+  ])("rejects the reserved video ID in %s", async (url) => {
+    expect(await youtube.fromUrl(new URL(url), reserve)).toBeUndefined();
+  });
+  it("rejects the reserved video ID in an iframe", () => {
+    expect(
+      youtube.fromEmbedCode([h("iframe", { src: "https://www.youtube.com/embed/videoseries" })], 0)
+    ).toBeUndefined();
+  });
+  it("converts a video link that has a playlist", async () => {
+    expect(
+      JSON.stringify(await youtube.fromUrl(new URL("https://www.youtube.com/watch?v=abc_123&list=PLabc"), reserve))
+    ).toContain("youtube-nocookie.com/embed/abc_123");
+  });
+});
 
 describe("Google Slides", () => {
   it.each([
@@ -124,7 +159,7 @@ describe("Gist", () => {
     expect(JSON.stringify(result)).toContain('"value":"<script>hello</script>"');
     expect(JSON.stringify(result)).toContain('"filename":"b.txt"');
   });
-  it("shows invisible Gist code while preserving the copied value and cleaning the filename", async () => {
+  it("shows invisible Gist code, copies the same visible text and cleans the filename", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const code = "left\u202eright\n";
     vi.mocked(safeFetch).mockResolvedValueOnce(
@@ -137,7 +172,9 @@ describe("Gist", () => {
     unicodeGuard()(tree, new VFile({ path: "contents/writer/post.md" }));
     expect(toString(tree)).toContain("⟨U+202E⟩");
     expect(JSON.stringify(tree)).toContain('"filename":"a.js"');
-    expect(JSON.stringify(tree)).toContain(JSON.stringify(code));
+    // コピーする値（pre の code）も、表示するコードと同じく可視化する（表示と違う文字列をコピーさせない）
+    expect(JSON.stringify(tree)).toContain(`"code":${JSON.stringify("left⟨U+202E⟩right\n")}`);
+    expect(JSON.stringify(tree)).not.toContain('"code":"left\u202e');
     expect(warning).toHaveBeenCalled();
     warning.mockRestore();
   });

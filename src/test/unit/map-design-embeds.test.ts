@@ -8,6 +8,10 @@ import { miro } from "../../../plugins/embeds/miro.ts";
 import type { Embed } from "../../../plugins/embeds/types.ts";
 
 const reserve = vi.fn();
+// 拒否するときは、要素ではなく undefined を返す（src のない要素を返すと、実際の変換では、その要素が使われる）
+const rejected = async (embed: Embed, url: string) => {
+  expect(await embed.fromUrl(new URL(url), reserve)).toBeUndefined();
+};
 const src = async (embed: Embed, url: string) => {
   const result = await embed.fromUrl(new URL(url), reserve);
   const iframe = result?.children[0];
@@ -53,7 +57,7 @@ describe("Google Maps", () => {
     "https://www.google.com/maps/search/?api=1&query=starbucks&query_place_id=ChIJsU30zM1qkFQRbnOm1_LBoG0",
     "https://www.google.com/maps/place/",
   ])("rejects %s", async (url) => {
-    expect(await src(googleMaps, url)).toBeUndefined();
+    await rejected(googleMaps, url);
   });
 });
 
@@ -88,7 +92,7 @@ describe("Figma and FigJam", () => {
     "https://www.figma.com/design/a-b",
     "https://www.figma.com/embed?url=https%3A%2F%2Fwww.figma.com.evil.test%2Fdesign%2Fabc",
   ])("rejects %s", async (url) => {
-    expect(await src(figma, url)).toBeUndefined();
+    await rejected(figma, url);
     expect(figma.fromEmbedCode([h("iframe", { src: url })], 0)).toBeUndefined();
   });
 });
@@ -135,6 +139,6 @@ describe("Miro", () => {
     "https://miro.com/app/board/bad/",
     "https://miro.com/app/board/a%2Fb=/",
   ])("rejects %s", async (url) => {
-    expect(await src(miro, url)).toBeUndefined();
+    await rejected(miro, url);
   });
 });

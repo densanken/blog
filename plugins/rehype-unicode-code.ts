@@ -76,7 +76,15 @@ export default () => (tree: Root, file: VFile) => {
           if ((key === "ariaDescribedBy" || key === "ariaLabelledBy") && Array.isArray(value)) {
             child.properties[key] = value.map((item) => targetFor(String(item)) ?? String(item));
           }
-          if (typeof value !== "string" || key === "code") continue;
+          // pre の code は、コピーボタンがコピーする値であり、表示するコードと同じ規則で不可視文字を可視化する
+          // 表示と違う文字列（不可視の制御文字を含むコード）をコピーさせないため（Trojan Source）
+          // 本文の text で警告しているため、ここでは警告しない
+          if (key === "code" && typeof value === "string") {
+            const result = cleanUnicode(value, true);
+            if (result.changed) child.properties[key] = result.value;
+            continue;
+          }
+          if (typeof value !== "string") continue;
           const target = key === "href" && value.startsWith("#") ? targetFor(value.slice(1)) : undefined;
           const result =
             target !== undefined

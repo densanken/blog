@@ -103,6 +103,18 @@ describe("classification", () => {
     await transform(code("@startuml\nA -> B\n@enduml"), file);
     expect(messages).toHaveLength(2);
     expect(process.exitCode).toBeUndefined();
+    // PlantUML Server が構文の誤りに返す HTTP 400 は、作者が直せる不備なので、defect にする
+    vi.mocked(safeFetch).mockRejectedValue(Object.assign(new Error("HTTP 400"), { status: 400 }));
+    await transform(code("@startuml\nA -> -> B\n@enduml"), file);
+    expect(messages).toHaveLength(3);
+    expect(messages[2]).toContain("図の構文に誤りがあります");
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+    // 400 以外（サーバーの障害）は、defect にしない
+    vi.mocked(safeFetch).mockRejectedValue(Object.assign(new Error("HTTP 503"), { status: 503 }));
+    await transform(code("@startuml\nA -> C\n@enduml"), file);
+    expect(messages).toHaveLength(4);
+    expect(process.exitCode).toBeUndefined();
   });
   it("treats an invisible character in code as a defect, except in an embedded external file", () => {
     vi.stubEnv("CONTENT_STRICT", "1");

@@ -14,7 +14,7 @@ export const restoredQuoteStarts = new WeakMap<VFile, Set<number>>();
 export const invalidTwitterRanges = new WeakMap<VFile, [number, number][]>();
 
 // 引用の直後にある widgets.js の script を取り除く（埋め込みに含まれるため）
-const widgetsScript = /^\s*<script\b([^>]*)>\s*<\/script\s*>/i;
+const widgetsScript = /^\s*<script\b([^>]*)>\s*<\/script\b[^>]*>/i;
 const withoutWidgets = (html: string) => {
   const match = widgetsScript.exec(html);
   const src = match && /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(match[1] ?? "");
@@ -166,7 +166,9 @@ export default () => (tree: Root, file: VFile) => {
             children[last]?.type === "html" ||
             (tailIsHtml &&
               (/^\s*<\w+\b[^>]*>[\s\S]*<\/\w+\s*>\s*$/i.test(htmlTail) ||
-                /^\s*(?:(?:<!--(?:[^-]|-(?!->))*-->|<script\b[^>]*>\s*<\/script>|<\/\w+\s*>)\s*)*$/i.test(htmlTail))))
+                /^\s*(?:(?:<!--(?:[^-]|-(?!->))*-->|<script\b[^>]*>\s*<\/script\b[^>]*>|<\/\w+\s*>)\s*)*$/i.test(
+                  htmlTail
+                ))))
         ) {
           restored.add(start);
           const prefix = node.value.slice(0, start - nodeStart);

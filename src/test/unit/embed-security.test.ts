@@ -72,7 +72,10 @@ describe("hostile embed code", () => {
     const tree = await render(
       '<pre github-embed="true" githubEmbed="true" filename="file.ts"><code>test</code></pre>\n\n```js githubEmbed=true\ntest\n```'
     );
-    for (const node of elements(tree).filter((element) => element.tagName === "pre")) {
+    const blocks = elements(tree).filter((element) => element.tagName === "pre");
+    // コードブロックが残っていなければ、次のループの確認が一度も実行されない
+    expect(blocks).toHaveLength(2);
+    for (const node of blocks) {
       expect(node.properties.githubEmbed).toBeUndefined();
       expect(node.properties["github-embed"]).toBeUndefined();
     }
@@ -111,6 +114,7 @@ describe("hostile embed code", () => {
       `https://speakerdeck.com/player/${"a".repeat(32)}`,
     ];
     for (const src of urls) {
+      const host = new URL(src).hostname;
       const tree = await render(
         `<iframe class="speakerdeck-iframe" id="evil" name="evil" src="${src}" onload="evil()" srcdoc="<script>evil()</script>" style="position:fixed" sandbox="allow-top-navigation" allow="camera">${hazards}</iframe>`
       );
@@ -120,15 +124,15 @@ describe("hostile embed code", () => {
       const expected =
         src === youtube
           ? "https://www.youtube-nocookie.com/embed/abc"
-          : src.includes("docs.google.com/")
+          : host === "docs.google.com"
             ? src.replace("/embed", "/pubembed")
-            : src.includes("codepen.io/")
+            : host === "codepen.io"
               ? `${src}?default-tab=result`
               : src;
       expect(frames[0]?.properties.src).toBe(expected);
       expect(frames[0]?.properties.loading).toBe("lazy");
       expect(frames[0]?.properties.allow).toBe(
-        src.includes("spotify.com") || src.includes("music.apple.com") ? "encrypted-media; fullscreen" : "fullscreen"
+        host === "open.spotify.com" || host === "embed.music.apple.com" ? "encrypted-media; fullscreen" : "fullscreen"
       );
       expect(frames[0]?.properties.title).toBeTruthy();
     }

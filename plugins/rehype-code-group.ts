@@ -7,7 +7,8 @@ const isTab = (node: RootContent): node is Element =>
   node.type === "element" &&
   node.tagName === "pre" &&
   typeof node.properties.meta === "string" &&
-  /\btab\b/.test(node.properties.meta);
+  // `no-tab` や `tab=false` は、`tab` ではない（空白で区切った 1 語として、完全に一致するものだけをタブにする）
+  node.properties.meta.split(/\s+/).includes("tab");
 const isBlank = (node: RootContent) => node.type === "text" && !node.value.trim();
 
 // ` ```sh [npm] tab ` のようにメタに `tab` を書いたコードブロックのうち、連続するものを、タブで切り替える code-group にまとめる

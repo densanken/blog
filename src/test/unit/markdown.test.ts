@@ -14,7 +14,9 @@ import { VFile } from "vfile";
 import { describe, expect, it, vi } from "vitest";
 
 import * as imageCheck from "../../../plugins/image-check.ts";
+import codeGroup from "../../../plugins/rehype-code-group.ts";
 import embed from "../../../plugins/rehype-embed.ts";
+import externalLinks from "../../../plugins/rehype-external-links.ts";
 import compat from "../../../plugins/rehype-mdc-compat.ts";
 import toolbar from "../../../plugins/rehype-mermaid-toolbar.ts";
 import sanitize from "../../../plugins/rehype-sanitize.ts";
@@ -199,6 +201,10 @@ it("keeps a link as is when the fetched page is a bot challenge", async () => {
     const tree = root(h("p", [link("https://example.org/challenge")]));
     await embed()(tree, new VFile({ path: "post.md" }));
     expect(JSON.stringify(tree)).not.toContain("link-card");
+    // 失敗しても、元のリンクは、そのまま残す
+    const anchor = child(child(tree, 0), 0);
+    expect(anchor.tagName).toBe("a");
+    expect(anchor.properties.href).toBe("https://example.org/challenge");
     expect(warning).toHaveBeenCalled();
   } finally {
     warning.mockRestore();
@@ -290,9 +296,10 @@ it("sandboxes every iframe provider", async () => {
     Promise.resolve(
       Buffer.from(
         JSON.stringify({
-          html: url.startsWith("https://speakerdeck.com")
-            ? '<iframe src="https://speakerdeck.com/player/abc"></iframe>'
-            : '<iframe src="https://www.docswell.com/slide/abc/embed"></iframe>',
+          html:
+            new URL(url).hostname === "speakerdeck.com"
+              ? '<iframe src="https://speakerdeck.com/player/abc"></iframe>'
+              : '<iframe src="https://www.docswell.com/slide/abc/embed"></iframe>',
           title: "slides",
           width: 16,
           height: 9,
@@ -605,4 +612,81 @@ it("excludes GFM autolinks from reading time while keeping link text and code", 
   const reference = new VFile();
   await processor.run(processor.parse(`[https://${url}][ref]\n\n[ref]: https://example.com`), reference);
   expect(reference.data.readingTime).toBe(2);
+});
+
+it("does not count tags in the reading time", async () => {
+  const processor = unified().use(remarkParse).use(postMeta);
+  const file = new VFile();
+  Object.assign(file, { articleContext: {} });
+  // タグが残ると、1,300 文字（3 分）になる
+  const tree = processor.parse("x");
+  tree.children = [
+    { type: "paragraph", children: [{ type: "text", value: `${"<span>".repeat(200)}${"a".repeat(100)}` }] },
+  ];
+  await processor.run(tree, file);
+  expect(file.data.readingTime).toBe(1);
+});
+
+it("reads a local image whose file name is percent-encoded", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "image-encoded-"));
+  try {
+    mkdirSync(join(dir, "writer/assets"), { recursive: true });
+    writeFileSync(
+      join(dir, "writer/assets/my photo.png"),
+      await sharp({ create: { width: 2, height: 2, channels: 3, background: "red" } })
+        .png()
+        .toBuffer()
+    );
+    const processor = unified().use(remarkParse).use(assetImages, { contents: dir });
+    const tree = processor.parse("![photo](./assets/my%20photo.png)");
+    await processor.run(tree, new VFile({ path: join(dir, "writer/post.md") }));
+    const paragraph = tree.children[0];
+    const image = paragraph?.type === "paragraph" ? paragraph.children[0] : undefined;
+    expect(image?.type === "image" ? image.url : "").toMatch(/^generated-/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it("rejects an encoded path that leaves the assets directory", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "image-encoded-"));
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  try {
+    mkdirSync(join(dir, "writer/assets"), { recursive: true });
+    const processor = unified().use(remarkParse).use(assetImages, { contents: dir });
+    for (const url of ["./assets/%2e%2e/%2e%2e/secret.png", "./assets/%zz.png"]) {
+      const tree = processor.parse(`![x](${url})`);
+      await processor.run(tree, new VFile({ path: join(dir, "writer/post.md") }));
+      const paragraph = tree.children[0];
+      const image = paragraph?.type === "paragraph" ? paragraph.children[0] : undefined;
+      expect(image?.type === "image" ? image.url : "unexpected").toBe("");
+    }
+  } finally {
+    warning.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it("groups only code blocks whose meta has the tab token", () => {
+  const pre = (meta: string) => h("pre", { meta }, [h("code", "x")]);
+  const tree = root(pre("sh [npm] tab"), pre("sh [pnpm] no-tab"), pre("sh [yarn] tab=false"), pre("sh [bun] tab"));
+  codeGroup()(tree);
+  expect(tree.children.map((node) => (node.type === "element" ? node.tagName : node.type))).toEqual([
+    "code-group",
+    "pre",
+    "pre",
+    "code-group",
+  ]);
+});
+
+it("opens only links to other origins in a new tab", () => {
+  const tree = root(
+    link("https://example.org/"),
+    link("https://blog.densanken.com/privacy"),
+    link("/privacy"),
+    link("https://blog.densanken.com.evil.test/")
+  );
+  externalLinks()(tree);
+  const targets = tree.children.map((node) => (node.type === "element" ? node.properties.target : undefined));
+  expect(targets).toEqual(["_blank", undefined, undefined, "_blank"]);
 });

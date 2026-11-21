@@ -248,6 +248,25 @@ describe("link regressions", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("does not treat the paging of an author page as an article", () => {
+    const dir = mkdtempSync(join(tmpdir(), "internal-"));
+    try {
+      mkdirSync(join(dir, "Writer"), { recursive: true });
+      writeFileSync(join(dir, "Writer", "profile.yaml"), "name: Writer\n");
+      const tree: Root = {
+        type: "root",
+        children: [h("a", { href: "/@Writer/page/2" }, "next"), h("a", { href: "/@Writer/page/2/" }, "next")],
+      };
+      const log = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      internalLinks({ contents: dir })(tree, new VFile({ path: join(dir, "Writer", "Other.md") }));
+      expect(tree.children[0]).toMatchObject({ properties: { href: "/@Writer/page/2/" } });
+      expect(tree.children[1]).toMatchObject({ properties: { href: "/@Writer/page/2/" } });
+      expect(log).not.toHaveBeenCalled();
+      log.mockRestore();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it("warns about invalid links in generated output", () => {
     const dir = mkdtempSync(join(tmpdir(), "generated-"));
     try {

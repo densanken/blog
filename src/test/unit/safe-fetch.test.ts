@@ -107,6 +107,13 @@ describe("safe fetch", () => {
     await expect(safeFetch("https://example.com", { maxBytes: 3 })).rejects.toThrow();
     expect((await safeFetch("https://chunks.example.com", { maxBytes: 3, truncate: true })).toString()).toBe("abc");
   });
+  it("reports the HTTP status of an unsuccessful response", async () => {
+    network.fetch.mockImplementation(() => Promise.resolve(new Response("bad", { status: 400 })));
+    await expect(safeFetch("https://status.example/", { maxBytes: 10 })).rejects.toMatchObject({
+      message: "HTTP 400",
+      status: 400,
+    });
+  });
   it("shares successful requests with matching options", async () => {
     network.fetch.mockImplementation(() => Promise.resolve(new Response("ok")));
     const url = "https://cache.example/";

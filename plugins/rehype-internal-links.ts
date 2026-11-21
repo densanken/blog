@@ -39,7 +39,8 @@ export default ({ contents }: { contents: string }) => {
         node.properties.href =
           /^[a-z][a-z\d+.-]*:/i.test(href) || href.startsWith("//") ? `${url.origin}${target}` : target;
       };
-      if (!/^\/@[^/]+\/.+/.test(pathname)) {
+      // 著者ページのページ送り（/@<著者ID>/page/<番号>）は、記事ではない（記事の slug に page は使えない）
+      if (!/^\/@[^/]+\/.+/.test(pathname) || /^\/@[^/]+\/page(?:\/|$)/i.test(pathname)) {
         // 記事以外のページ（/privacy、/@<著者ID> など）も、正規 URL の末尾のスラッシュをつける（拡張子のあるファイルは除く）
         if (!/(?:\/|\.[^/]*)$/.test(pathname)) setPath(`${url.pathname}/`);
         return;

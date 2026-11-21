@@ -50,6 +50,19 @@ describe("invisible characters", () => {
     const two = "https://example.com/a%E2%80%8D👩%E2%80%8D💻";
     expect(cleanUrlUnicode(two)).toEqual({ value: "https://example.com/a👩%E2%80%8D💻", changed: true });
   });
+  it("makes invisible characters visible in the copied code of a pre, like the displayed code", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const pre = h("pre", { code: "a\u202eb" }, [h("code", "a\u202eb")]);
+    unicodeGuard()({ type: "root" as const, children: [pre] }, { path: "contents/a/post.md" } as never);
+    const shown = pre.children[0]?.type === "element" ? pre.children[0].children[0] : undefined;
+    expect(shown).toMatchObject({ value: "a⟨U+202E⟩b" });
+    expect(pre.properties.code).toBe("a⟨U+202E⟩b");
+    // 変化のないコードは、そのまま
+    const plain = h("pre", { code: "a b" }, [h("code", "a b")]);
+    unicodeGuard()({ type: "root" as const, children: [plain] }, { path: "contents/a/post.md" } as never);
+    expect(plain.properties.code).toBe("a b");
+    warn.mockRestore();
+  });
   it("updates encoded references and ARIA references after an ID collision", () => {
     const plain = h("span", { id: "ab" });
     const invisible = h("span", { id: "a\u200bb" });

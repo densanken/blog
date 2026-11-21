@@ -58,7 +58,8 @@ export default ({ contents }: { contents: string }) =>
           node.attributes = { ...attributes, width, height: Math.round((width * hosted.height) / hosted.width) };
           continue;
         }
-        const path = resolve(dirname(file.path), node.url);
+        // 画像の URL は、パーセントエンコードされている（`my%20photo.png`）ため、ファイルのパスに戻す
+        const path = resolve(dirname(file.path), decodeURIComponent(node.url));
         if (!path.startsWith(`${assets}${sep}`)) throw new Error("assets の外にある画像は使えません");
         const size = await localImage(assets, path);
         node.url = store(size);

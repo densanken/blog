@@ -143,10 +143,28 @@ describe("embed code", () => {
       expect(stats.defects).toBe(before);
       expect(warning).not.toHaveBeenCalled();
       // another script is kept for sanitize to remove and report
-      await render(
+      const other = await render(
         '<blockquote class="twitter-tweet"><p>First\n\nhttps://t.co/example</p>&mdash; Name (@user) <a href="https://x.com/user/status/123">date</a></blockquote>\n<script async src="https://example.com/other.js"></script>'
       );
+      expect(other).not.toContain('"tagName":"script"');
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining("<script>"));
       expect(stats.defects).toBeGreaterThan(before);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+  it("converts consecutive split X quotes, each followed by widgets.js", async () => {
+    const quote = (id: number) =>
+      `<blockquote class="twitter-tweet"><p>Post ${String(id)}\n\nhttps://t.co/example${String(id)}</p>&mdash; Name (@user) <a href="https://x.com/user/status/${String(id)}">date</a></blockquote>\n<script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>`;
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const html = await render(`${quote(1)}\n\n${quote(2)}\n\nAfter`);
+      expect(html.match(/"tagName":"twitter-embed"/g)).toHaveLength(2);
+      expect(html).toContain("status/1");
+      expect(html).toContain("status/2");
+      expect(html).not.toContain('"tagName":"blockquote"');
+      expect(html).not.toContain('"tagName":"script"');
+      expect(html).not.toContain("t.co/example");
     } finally {
       warning.mockRestore();
     }

@@ -8,7 +8,7 @@ export const widgetsSource = /^https:\/\/platform\.(?:twitter|x)\.com\/widgets\.
 
 export const twitter: Embed = {
   fromUrl: ({ hostname, origin, pathname }) => {
-    const [post] = /^\/\w+\/status\/\d+/.exec(pathname) ?? [];
+    const [post] = /^\/\w+\/status\/\d+(?=\/|$)/.exec(pathname) ?? [];
     if (/^(www\.)?(twitter|x)\.com$/.test(hostname) && post) return h("twitter-embed", { url: `${origin}${post}` });
   },
   // `<blockquote class="twitter-tweet">...<a href="https://twitter.com/<user>/status/<ID>?...">...</a></blockquote>` と、widgets.js の script

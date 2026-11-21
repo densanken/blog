@@ -245,7 +245,12 @@ export default ({ contents, cacheDir = resolve(".cache/plantuml") }: { contents:
             throw new Error("プリプロセッサ、外部読み込みやリンクは使えません");
           }
           const response = await fetchSvg(source).catch((error: unknown) => {
-            throw new ServerError(error instanceof Error ? error.message : String(error));
+            const message = error instanceof Error ? error.message : String(error);
+            // PlantUML Server は、図の構文に誤りがあると HTTP 400 を返す（作者が直せる不備なので、サーバーの障害にしない）
+            // safe-fetch.ts をモックしても判定できるよう、HttpError ではなく status で判定する
+            if (typeof error === "object" && error !== null && "status" in error && error.status === 400)
+              throw new Error(`図の構文に誤りがあります（${message}）`);
+            throw new ServerError(message);
           });
           const svg = parseSvg(response, `mermaid-plantuml-${String(count)}`, (attribute) => {
             defect(attribute ? "属性の不可視文字を取り除きました" : "不可視文字を取り除きました", path);

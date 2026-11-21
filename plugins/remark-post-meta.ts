@@ -21,6 +21,17 @@ const excerpt = (tree: Root) => {
   return end > excerptLength / 2 ? head.slice(0, end + 1) : `${head}…`;
 };
 
+// HTML のタグを取り除く（`<scr<b>ipt>` のように、取り除いた結果に新しいタグができても残らないよう、変化がなくなるまで繰り返す）
+const stripTags = (value: string) => {
+  let previous: string;
+  let result = value;
+  do {
+    previous = result;
+    result = result.replace(/<[^>]*>/g, "");
+  } while (result !== previous);
+  return result;
+};
+
 const readable = (node: Root | RootContent, inLink = false): string => {
   if (node.type === "html" || node.type === "definition") return "";
   if (node.type === "image" || node.type === "imageReference") return node.alt ?? "";
@@ -38,8 +49,7 @@ const readable = (node: Root | RootContent, inLink = false): string => {
     return node.children
       .map((child) => readable(child, inLink || node.type === "link" || node.type === "linkReference"))
       .join("");
-  if (node.type === "text")
-    return inLink ? node.value : node.value.replace(/https?:\/\/[^\s<>]+/gi, "").replace(/<[^>]*>/g, "");
+  if (node.type === "text") return inLink ? node.value : stripTags(node.value.replace(/https?:\/\/[^\s<>]+/gi, ""));
   return "";
 };
 
