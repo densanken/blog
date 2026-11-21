@@ -163,6 +163,19 @@ describe("embed code", () => {
     const other = `<script async src="https://example.com/other.js">${end}`;
     expect(withoutWidgets(other)).toBe(other);
   });
+  // 終了タグの属性値は、引用符で囲めば `>` を含められる（HTML のパーサーは、この `>` で終了タグを終えない）
+  it.each([`</script foo=">">`, `</script foo='>'>`, `</script a="x>y" b='>'>`])(
+    "withoutWidgets removes the whole end tag %j and keeps the text after it",
+    (end) => {
+      const widgets = `<script async src="https://platform.x.com/widgets.js">${end}`;
+      expect(withoutWidgets(`${widgets}after`)).toBe("after");
+      expect(withoutWidgets(widgets)).toBe("");
+    }
+  );
+  it("withoutWidgets keeps a script whose end tag is not closed", () => {
+    const widgets = `<script async src="https://platform.x.com/widgets.js"></script foo=">`;
+    expect(withoutWidgets(widgets)).toBe(widgets);
+  });
   // CommonMark の HTML ブロックは、`</script>` の行で終わる（`</script >` などでは終わらない）ため、
   // 後ろの本文まで同じ HTML ノードに入る。その場合は、script を取り除いた残りがあるので、公式のコードとして消費せず、
   // sanitize が取り除いて報告する（どの書き方でも、script は出力に残らない）

@@ -13,8 +13,15 @@ const limit = 10_000;
 export const restoredQuoteStarts = new WeakMap<VFile, Set<number>>();
 export const invalidTwitterRanges = new WeakMap<VFile, [number, number][]>();
 
+// script の終了タグ（HTML のパーサーと同じく、属性を書ける。引用符で囲んだ属性値の中の `>` では、終わらない）
+const scriptEnd = String.raw`<\/script(?:[\s/](?:[^>"']|"[^"]*"|'[^']*')*)?>`;
 // 引用の直後にある widgets.js の script を取り除く（埋め込みに含まれるため）
-const widgetsScript = /^\s*<script\b([^>]*)>\s*<\/script[^>]*>/i;
+const widgetsScript = new RegExp(String.raw`^\s*<script\b([^>]*)>\s*${scriptEnd}`, "i");
+// 引用の直後に、コメント、script、閉じタグだけが続くか
+const onlyIgnorableHtml = new RegExp(
+  String.raw`^\s*(?:(?:<!--(?:[^-]|-(?!->))*-->|<script\b[^>]*>\s*${scriptEnd}|<\/\w+\s*>)\s*)*$`,
+  "i"
+);
 export const withoutWidgets = (html: string) => {
   const match = widgetsScript.exec(html);
   const src = match && /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(match[1] ?? "");
@@ -165,10 +172,7 @@ export default () => (tree: Root, file: VFile) => {
           (canSplit ||
             children[last]?.type === "html" ||
             (tailIsHtml &&
-              (/^\s*<\w+\b[^>]*>[\s\S]*<\/\w+\s*>\s*$/i.test(htmlTail) ||
-                /^\s*(?:(?:<!--(?:[^-]|-(?!->))*-->|<script\b[^>]*>\s*<\/script[^>]*>|<\/\w+\s*>)\s*)*$/i.test(
-                  htmlTail
-                ))))
+              (/^\s*<\w+\b[^>]*>[\s\S]*<\/\w+\s*>\s*$/i.test(htmlTail) || onlyIgnorableHtml.test(htmlTail))))
         ) {
           restored.add(start);
           const prefix = node.value.slice(0, start - nodeStart);
