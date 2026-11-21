@@ -16,7 +16,9 @@ runs:
         SCAN_PATH: ${{ inputs.path }}
         STRICT: ${{ inputs.strict }}
       run: |
-        args=(--database ~/clamav-db --recursive --infected --no-summary --exclude-dir='/\.git$')
+        # 既定の --max-dir-recursion=15 を超える深さのファイルは、エラーにならず未検査になる
+        # パスの長さの上限（4096 文字）から、深さは 2048 を超えないため、すべての階層を検査できる
+        args=(--database ~/clamav-db --recursive --max-dir-recursion=2048 --infected --no-summary --exclude-dir='/\.git$')
         args+=(--remove)
         set +e
         out=$(clamscan "${args[@]}" "$SCAN_PATH" 2>&1)

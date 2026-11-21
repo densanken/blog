@@ -31,13 +31,27 @@ runs:
       run: pnpm exec playwright install --with-deps chromium
 
     - name: Use the contents directory
-      if: inputs.contents-dir != 'contents'
       shell: bash
       env:
         CONTENTS_DIR: ${{ inputs.contents-dir }}
       run: |
+        # `./contents` や `contents/` のように、表記が違っても同じディレクトリなら、何もしない
+        if [ ! -d "$CONTENTS_DIR" ]; then
+          echo "::error::contents-dir が存在しません: $CONTENTS_DIR"
+          exit 1
+        fi
+        source=$(realpath -- "$CONTENTS_DIR")
+        target=$(realpath -m -- contents)
+        if [ "$source" = "$target" ]; then exit 0; fi
+        # contents の中を指定すると、削除でコピー元が消える
+        case "$source/" in
+          "$target"/*)
+            echo "::error::contents-dir に contents の中は指定できません: $CONTENTS_DIR"
+            exit 1
+            ;;
+        esac
         rm -rf contents
-        cp -a "$CONTENTS_DIR" contents
+        cp -a "$source" contents
 
     - name: Delete symbolic links in contents
       uses: ./.github/actions/symlinks
