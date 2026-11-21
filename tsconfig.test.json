@@ -1,0 +1,10 @@
+{
+  "extends": "./.nuxt/tsconfig.node.json",
+  "compilerOptions": {
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["src/test/**/*.ts", "probe-image-size.d.ts"],
+  "exclude": []
+}

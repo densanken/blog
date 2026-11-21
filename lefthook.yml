@@ -1,0 +1,11 @@
+pre-commit:
+  jobs:
+    - name: lint
+      glob: "*.{ts,vue,mjs}"
+      exclude: "^contents/"
+      run: pnpm eslint --fix {staged_files}
+      stage_fixed: true
+    - name: format
+      exclude: "^contents/"
+      run: pnpm oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true

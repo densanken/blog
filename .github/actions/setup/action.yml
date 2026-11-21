@@ -1,0 +1,33 @@
+name: setup
+description: Set up sfw, pnpm and Node.js, and install dependencies
+runs:
+  using: composite
+  steps:
+    - name: Set up sfw
+      uses: socketdev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+      with:
+        mode: firewall-free
+
+    - name: Set up pnpm and Node.js
+      uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      with:
+        node-version-file: .nvmrc
+        install: false
+
+    # Unicode の辞書（confusables.txt と Scripts.txt）は日付ごとにキャッシュする（取得は plugins/unicode-data.ts）
+    # インストールの postinstall（nuxt prepare）も辞書を使うため、インストールの前に復元する
+    - name: Get date for the Unicode dictionary cache
+      id: unicode-date
+      shell: bash
+      run: echo "value=$(date +%F)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Unicode dictionaries
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: node_modules/.cache/unicode
+        key: unicode-${{ steps.unicode-date.outputs.value }}
+        restore-keys: unicode-
+
+    - name: Install dependencies
+      shell: bash
+      run: sfw pnpm install --frozen-lockfile

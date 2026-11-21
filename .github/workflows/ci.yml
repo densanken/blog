@@ -1,0 +1,48 @@
+name: ci
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.check.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - name: lint
+            script: lint:check
+          - name: unit
+            script: test
+          - name: format
+            script: fmt:check
+          - name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 記事の更新日を Git の履歴から求めるため、全履歴と記事のサブモジュールが必要
+          fetch-depth: 0
+          filter: blob:none
+          submodules: true
+          persist-credentials: false
+
+      # build は、ビルドの手順（.github/actions/build）がセットアップから行う
+      - name: Set up
+        if: matrix.check.name != 'build'
+        uses: ./.github/actions/setup
+
+      - name: Run ${{ matrix.check.name }} check
+        if: matrix.check.name != 'build'
+        run: pnpm run ${{ matrix.check.script }}
+
+      - name: Build
+        if: matrix.check.name == 'build'
+        uses: ./.github/actions/build

@@ -1,0 +1,20 @@
+name: symlinks
+description: Delete symbolic links under contents/ (they can point to files outside the repository)
+runs:
+  using: composite
+  steps:
+    - name: Delete symbolic links in contents
+      shell: bash
+      run: |
+        # シンボリックリンクはビルド環境の任意のファイルを指せるため、ビルドの前に削除して警告する（記事の内容でビルドを止めない）
+        if [ -d contents ]; then
+          find contents -type l -print0 | while IFS= read -r -d '' link; do
+            link_escaped="${link//'%'/%25}"
+            link_escaped="${link_escaped//$'\r'/%0D}"
+            link_escaped="${link_escaped//$'\n'/%0A}"
+            link_escaped="${link_escaped//':'/%3A}"
+            link_escaped="${link_escaped//','/%2C}"
+            echo "::warning file=${link_escaped}::シンボリックリンクは使えないため、削除しました。"
+            rm -- "$link"
+          done
+        fi
