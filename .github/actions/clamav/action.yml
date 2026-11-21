@@ -20,6 +20,13 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends clamav
+        # 自動更新のサービスが、次の freshclam と競合しないようにする
+        sudo systemctl stop clamav-freshclam.service || true
+        # freshclam は AppArmor で、/etc/clamav/freshclam.conf と /var/lib/clamav 以外を読み書きできない
+        # 設定ファイルをホームに置くと開けないため、標準の設定と /var/lib/clamav で更新し、キャッシュのディレクトリと入れ替える
         mkdir -p ~/clamav-db
-        printf 'DatabaseMirror database.clamav.net\nDatabaseDirectory %s\n' ~/clamav-db > ~/freshclam.conf
-        freshclam --config-file ~/freshclam.conf
+        sudo cp -a ~/clamav-db/. /var/lib/clamav/
+        sudo chown -R clamav:clamav /var/lib/clamav
+        sudo freshclam
+        sudo cp -a /var/lib/clamav/. ~/clamav-db/
+        sudo chown -R "$(id -u):$(id -g)" ~/clamav-db
