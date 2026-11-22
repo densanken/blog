@@ -1,0 +1,22 @@
+# 配信する Apache の設定
+# ページの URL は、末尾のスラッシュつき（/@<著者ID>/<スラッグ>/）で、スラッシュなしはディレクトリとして Apache がスラッシュつきへリダイレクトする
+
+# 存在しないパスは、404.html を 404 で返す
+ErrorDocument 404 /404.html
+
+<IfModule mod_headers.c>
+    # 全ページに付ける HTTP ヘッダー（404 などのエラーの応答にも付けるため always を使う）
+    # ページごとに違う script-src（インラインのスクリプトのハッシュ）は、各ページの <meta> の CSP で指定する（src/server/plugins/csp.ts）
+    # CSP が複数あると、すべてを満たす必要があるため、<meta> では指定できない frame-ancestors と、共通の制限だけを、ここに書く
+    # プレビュー用のビルドは、この 3 行を Cloudflare の _headers に移す（plugins/preview.ts）
+    Header always set Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'none'"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # 既定では、毎回更新を確認させる（HTML、ページのデータ、著者の JSON、検索の索引の入口、フィード、サイトマップなど）
+    # 画像、CSS、JavaScript、フォント、検索の索引は、1 日キャッシュする
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+    <FilesMatch "\.(css|js|png|webp|ico|woff2?|ttf|wasm|pagefind|pf_\w+)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+</IfModule>
