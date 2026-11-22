@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -14,6 +14,8 @@ import {
   send,
   toEmbed,
 } from "../../../scripts/notify-discord.ts";
+
+import type { Embed } from "../../../scripts/notify-discord.ts";
 
 const entry = (slug: string, extra = "") => `
   <entry>
@@ -44,7 +46,6 @@ describe("notify discord", () => {
         authorUrl: "https://example.com/@me/",
         authorIcon: "https://example.com/me.webp",
         published: "2026-11-07T15:00:00.000Z",
-        image: "",
       },
     ]);
   });
@@ -57,14 +58,13 @@ describe("notify discord", () => {
 
   it("builds an embed", () => {
     const [parsed] = parseFeed(feed("a")).entries;
-    const embed = toEmbed({ ...parsed!, summary: "あ".repeat(300), image: "https://example.com/i.png" }, "サイト");
+    const embed = toEmbed({ ...parsed!, summary: "あ".repeat(300) }, "サイト");
     expect(embed).toMatchObject({
       title: "記事 a & <b>",
       url: "https://example.com/a/",
       color: 15630383,
       author: { name: "著者", url: "https://example.com/@me/", icon_url: "https://example.com/me.webp" },
       footer: { text: "サイト・2026年11月8日" },
-      image: { url: "https://example.com/i.png" },
     });
     expect(Array.from(embed.description!)).toHaveLength(200);
   });
@@ -135,24 +135,53 @@ describe("notify discord", () => {
     const env = { DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1/x" };
     expect(await notify(feed("a"), feed("b", "a"), env, ng)).toMatch(/^failed/);
   });
-  it("attaches images found in the output and keeps the URL of the others", () => {
+  it("attaches icons found in the output and keeps the URL of the others", () => {
     const dir = mkdtempSync(join(tmpdir(), "notify-"));
     try {
       writeFileSync(join(dir, "me.webp"), "icon");
-      mkdirSync(join(dir, "_og"));
       const base = toEmbed(parseFeed(feed("a")).entries[0]!, "サイト");
-      const embed = { ...base, image: { url: "https://other.example/x.png" } };
+      const withIcon = (icon_url: string): Embed => ({ ...base, author: { name: "著者", icon_url } });
       const { embeds, files } = attachLocal(
-        [embed, { ...embed, image: { url: "https://example.com/../etc/passwd" } }],
+        [
+          withIcon("https://example.com/me.webp"),
+          withIcon("https://example.com/me.webp"),
+          withIcon("https://other.example/me.webp"),
+          withIcon("https://example.com/../etc/passwd"),
+        ],
         dir
       );
-      expect(embeds[0]!.author?.icon_url).toBe("attachment://0.webp");
-      expect(embeds[0]!.image?.url).toBe("https://other.example/x.png");
-      expect(embeds[1]!.image?.url).toBe("https://example.com/../etc/passwd");
-      expect(files.map(({ name }) => name)).toEqual(["0.webp", "1.webp"]);
+      // 同じアイコンは 1 つのファイルを共有する
+      expect(embeds.map((embed) => embed.author?.icon_url)).toEqual([
+        "attachment://0.webp",
+        "attachment://0.webp",
+        "https://other.example/me.webp",
+        "https://example.com/../etc/passwd",
+      ]);
+      expect(files.map((used) => used.map(({ name }) => name))).toEqual([["0.webp"], ["0.webp"], [], []]);
+      expect(files[0]![0]).toBe(files[1]![0]);
     } finally {
       rmSync(dir, { recursive: true });
     }
+  });
+
+  it("splits messages by the number and the total size of attachments", () => {
+    const base = toEmbed(parseFeed(feed("a")).entries[0]!, "サイト");
+    const embeds = Array.from({ length: 6 }, () => base);
+    const file = (name: string, size = 1) => ({ name, data: Buffer.alloc(size) });
+    // 6 件それぞれが別の添付を 2 つ持つと、10 件までの添付に収まるよう 5 件ごとに分かれる
+    const many = embeds.map((_, i) => [file(`${String(i)}a`), file(`${String(i)}b`)]);
+    expect(chunkEmbeds(embeds, many).map((part) => part.length)).toEqual([5, 1]);
+    // 共通の添付は 1 つと数える
+    const shared = file("icon");
+    expect(
+      chunkEmbeds(
+        embeds,
+        embeds.map(() => [shared])
+      ).map((part) => part.length)
+    ).toEqual([6]);
+    // 合計の大きさが上限を超える分は、次のメッセージに回る
+    const big = embeds.map((_, i) => [file(String(i), 8 * 1024 * 1024)]);
+    expect(chunkEmbeds(embeds, big).map((part) => part.length)).toEqual([2, 2, 2]);
   });
 
   it("sends multipart when files are attached", async () => {

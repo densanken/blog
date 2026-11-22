@@ -17,7 +17,6 @@ export interface Entry {
   authorUrl: string;
   authorIcon: string;
   published: string;
-  image: string;
 }
 export interface Feed {
   title: string;
@@ -30,7 +29,6 @@ export interface Embed {
   color: number;
   author?: { name: string; url?: string; icon_url?: string };
   footer?: { text: string };
-  image?: { url: string };
 }
 
 // 一度に増えた記事がこの件数を超えたら、誤検知とみなして通知しない
@@ -69,9 +67,6 @@ export const parseFeed = (xml: string): Feed => {
     const block = match[1]!;
     const links = [...block.matchAll(/<link\s[^>]*>/g)].map((link) => link[0]);
     const alternate = links.find((link) => !attribute(link, "rel") || attribute(link, "rel") === "alternate");
-    const enclosure = links.find(
-      (link) => attribute(link, "rel") === "enclosure" && attribute(link, "type").startsWith("image/")
-    );
     const author = /<author(?:\s[^>]*)?>([\s\S]*?)<\/author>/.exec(block);
     return {
       id: text(block, "id"),
@@ -82,7 +77,6 @@ export const parseFeed = (xml: string): Feed => {
       authorUrl: author ? text(author[1]!, "uri") : "",
       authorIcon: author ? attribute(/<media:thumbnail\s[^>]*>/.exec(author[1]!)?.[0] ?? "", "url") : "",
       published: text(block, "published"),
-      image: enclosure ? attribute(enclosure, "href") : "",
     };
   });
   // entry の外にある title（サイト名）を取る
@@ -127,7 +121,6 @@ export const toEmbed = (entry: Entry, siteName: string): Embed => {
       },
     }),
     ...(footer && { footer: { text: truncate(footer, 2048) } }),
-    ...(isHttp(entry.image) && { image: { url: entry.image } }),
   };
 };
 
@@ -136,7 +129,7 @@ export interface Attachment {
   data: Buffer;
 }
 
-// 公開前に通知すると、Discord が画像を取得できないため、サイト内の画像はビルド済みの出力から読んで添付する
+// 公開前に通知すると、Discord がアイコンを取得できないため、サイト内の画像はビルド済みの出力から読んで添付する
 const maxAttachmentBytes = 8 * 1024 * 1024;
 const readOutput = (dir: string, origin: string, value: string) => {
   try {
@@ -150,27 +143,34 @@ const readOutput = (dir: string, origin: string, value: string) => {
     return undefined;
   }
 };
-// 読めた画像は attachment:// に置き換えて files に集める、読めなければ URL のままにする
-export const attachLocal = (embeds: Embed[], dir: string): { embeds: Embed[]; files: Attachment[] } => {
-  const files: Attachment[] = [];
-  const localize = (value: string, origin: string) => {
-    const data = readOutput(dir, origin, value);
-    if (!data) return value;
-    const name = `${String(files.length)}${extname(basename(new URL(value).pathname))}`;
-    files.push({ name, data });
-    return `attachment://${name}`;
-  };
+// 読めた画像は attachment:// に置き換える、読めなければ URL のままにする
+// 同じ画像（同じ著者のアイコン）は 1 つのファイルにまとめ、files には embed ごとに使うファイルを入れる
+export const attachLocal = (embeds: Embed[], dir: string): { embeds: Embed[]; files: Attachment[][] } => {
+  const known = new Map<string, Attachment | undefined>();
+  const files: Attachment[][] = [];
   const result = embeds.map((embed): Embed => {
+    const used: Attachment[] = [];
+    files.push(used);
     let origin: string;
     try {
       origin = new URL(embed.url).origin;
     } catch {
       return embed;
     }
+    const localize = (value: string) => {
+      if (!known.has(value)) {
+        const data = readOutput(dir, origin, value);
+        const name = `${String(known.size)}${extname(basename(new URL(value).pathname))}`;
+        known.set(value, data && { name, data });
+      }
+      const file = known.get(value);
+      if (!file) return value;
+      if (!used.includes(file)) used.push(file);
+      return `attachment://${file.name}`;
+    };
     return {
       ...embed,
-      ...(embed.author?.icon_url && { author: { ...embed.author, icon_url: localize(embed.author.icon_url, origin) } }),
-      ...(embed.image && { image: { url: localize(embed.image.url, origin) } }),
+      ...(embed.author?.icon_url && { author: { ...embed.author, icon_url: localize(embed.author.icon_url) } }),
     };
   });
   return { embeds: result, files };
@@ -184,19 +184,38 @@ export const embedSize = (embed: Embed) =>
   (embed.author?.name.length ?? 0) +
   (embed.footer?.text.length ?? 0);
 
-// 件数（maxEmbeds）と文字数（maxEmbedTotal）の両方が上限に収まるように分割する
-export const chunkEmbeds = (embeds: Embed[]) => {
+// Discord が 1 メッセージに許す添付の数と、リクエスト全体の大きさ（上限は 25 MiB、JSON などの分の余裕を見る）
+export const maxAttachments = 10;
+export const maxAttachmentTotal = 20 * 1024 * 1024;
+
+// 件数（maxEmbeds）・文字数（maxEmbedTotal）・添付の数と大きさの全部が上限に収まるように分割する
+// files[i] は embeds[i] が使う添付、同じ添付は 1 メッセージ内で 1 回だけ数える
+export const chunkEmbeds = (embeds: Embed[], files: Attachment[][] = []) => {
   const parts: Embed[][] = [];
   let total = 0;
-  for (const embed of embeds) {
+  let attached = new Set<Attachment>();
+  let bytes = 0;
+  for (const [index, embed] of embeds.entries()) {
     const size = embedSize(embed);
+    const added = (files[index] ?? []).filter((file) => !attached.has(file));
+    const addedBytes = added.reduce((sum, file) => sum + file.data.length, 0);
     const last = parts.at(-1);
-    if (last && last.length < maxEmbeds && total + size <= maxEmbedTotal) {
+    if (
+      last &&
+      last.length < maxEmbeds &&
+      total + size <= maxEmbedTotal &&
+      attached.size + added.length <= maxAttachments &&
+      bytes + addedBytes <= maxAttachmentTotal
+    ) {
       last.push(embed);
       total += size;
+      for (const file of added) attached.add(file);
+      bytes += addedBytes;
     } else {
       parts.push([embed]);
       total = size;
+      attached = new Set(files[index]);
+      bytes = [...attached].reduce((sum, file) => sum + file.data.length, 0);
     }
   }
   return parts;
@@ -279,10 +298,12 @@ export const notify = async (
   // 古い記事から順に送る
   const embeds = added.reverse().map((entry) => toEmbed(entry, current.title));
   let sent = 0;
-  for (const part of chunkEmbeds(embeds)) {
-    const { embeds: localized, files } = outputDir ? attachLocal(part, outputDir) : { embeds: part, files: [] };
-    if (!(await send(localized, env, fetcher, files)))
-      return `failed: sent ${String(sent)} of ${String(embeds.length)}`;
+  const local = outputDir ? attachLocal(embeds, outputDir) : { embeds, files: embeds.map((): Attachment[] => []) };
+  let offset = 0;
+  for (const part of chunkEmbeds(local.embeds, local.files)) {
+    const files = [...new Set(local.files.slice(offset, offset + part.length).flat())];
+    offset += part.length;
+    if (!(await send(part, env, fetcher, files))) return `failed: sent ${String(sent)} of ${String(embeds.length)}`;
     sent += part.length;
   }
   return `sent ${String(sent)}`;
