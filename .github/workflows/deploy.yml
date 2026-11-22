@@ -156,6 +156,7 @@ jobs:
           sparse-checkout: |
             .nvmrc
             scripts/notify-discord.ts
+            plugins/strip-tags.ts
           sparse-checkout-cone-mode: false
           path: notify
           persist-credentials: false

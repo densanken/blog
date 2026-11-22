@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { chunk, findNew, notify, parseFeed, send, toEmbed } from "../../../scripts/notify-discord.ts";
+import { chunkEmbeds, embedSize, findNew, notify, parseFeed, send, toEmbed } from "../../../scripts/notify-discord.ts";
 
 const entry = (slug: string, extra = "") => `
   <entry>
@@ -57,12 +57,19 @@ describe("notify discord", () => {
   });
 
   it("chunks embeds by ten", () => {
-    expect(
-      chunk(
-        Array.from({ length: 23 }, (_, i) => i),
-        10
-      ).map((part) => part.length)
-    ).toEqual([10, 10, 3]);
+    const embeds = Array.from({ length: 23 }, () => ({ title: "t", url: "https://example.com", color: 0 }));
+    expect(chunkEmbeds(embeds).map((part) => part.length)).toEqual([10, 10, 3]);
+  });
+
+  it("chunks embeds so that the total length stays within 6000", () => {
+    const embed = { title: "a".repeat(256), description: "b".repeat(200), url: "https://example.com", color: 0 };
+    const parts = chunkEmbeds(Array.from({ length: 10 }, () => embed));
+    expect(parts.map((part) => part.length)).toEqual([10]);
+    const big = { ...embed, author: { name: "c".repeat(256) }, footer: { text: "d".repeat(400) } };
+    const split = chunkEmbeds(Array.from({ length: 10 }, () => big));
+    expect(split.length).toBeGreaterThan(1);
+    for (const part of split) expect(part.reduce((sum, e) => sum + embedSize(e), 0)).toBeLessThanOrEqual(6000);
+    expect(split.flat()).toHaveLength(10);
   });
 
   it("skips without a previous feed, with no change, or with too many entries", async () => {

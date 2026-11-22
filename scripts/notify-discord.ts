@@ -130,8 +130,31 @@ export const toEmbed = (entry: Entry, siteName: string): Embed => {
   };
 };
 
-export const chunk = <T>(items: T[], size: number) =>
-  Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, (index + 1) * size));
+// Discord は 1 メッセージの embed 全体で、title・description・author.name・footer.text の合計を 6000 文字以下に制限する
+export const maxEmbedTotal = 6000;
+export const embedSize = (embed: Embed) =>
+  embed.title.length +
+  (embed.description?.length ?? 0) +
+  (embed.author?.name.length ?? 0) +
+  (embed.footer?.text.length ?? 0);
+
+// 件数（maxEmbeds）と文字数（maxEmbedTotal）の両方が上限に収まるように分割する
+export const chunkEmbeds = (embeds: Embed[]) => {
+  const parts: Embed[][] = [];
+  let total = 0;
+  for (const embed of embeds) {
+    const size = embedSize(embed);
+    const last = parts.at(-1);
+    if (last && last.length < maxEmbeds && total + size <= maxEmbedTotal) {
+      last.push(embed);
+      total += size;
+    } else {
+      parts.push([embed]);
+      total = size;
+    }
+  }
+  return parts;
+};
 
 export type Env = Record<string, string | undefined>;
 
@@ -195,7 +218,7 @@ export const notify = async (
   // 古い記事から順に送る
   const embeds = added.reverse().map((entry) => toEmbed(entry, current.title));
   let sent = 0;
-  for (const part of chunk(embeds, maxEmbeds)) {
+  for (const part of chunkEmbeds(embeds)) {
     if (!(await send(part, env, fetcher))) return `failed: sent ${String(sent)} of ${String(embeds.length)}`;
     sent += part.length;
   }

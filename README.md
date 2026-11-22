@@ -8,7 +8,7 @@ Nuxt Content で構築した [CCSブログ](https://blog.densanken.com) です�
 
 ## 目次
 
-- [クイックスタート（ローカル開発）](#クイックスタートローカル開発)
+- [クイックスタート（ローカル開発）](#クイックスタート)
 - [ディレクトリ構成](#ディレクトリ構成)
 - [contents サブモジュールの操作](#contents-サブモジュールの操作)
 - [コマンド一覧（開発・テスト・ビルド）](#コマンド一覧開発テストビルド)
@@ -68,16 +68,6 @@ pnpm dev
 ```bash
 git submodule sync --recursive
 git submodule update --init --recursive
-```
-
-### ローカルの `../blog-contents` を直接参照する
-
-`.gitmodules` を汚さず、ローカルの隣接ディレクトリを参照したい場合は `.git/config` のみを一時的に書き換えることが可能です（`git submodule sync` を再実行すると元の URL に戻ります）。
-
-```bash
-git submodule sync contents \
-  && git config submodule.contents.url "$(realpath ../blog-contents)" \
-  && git -c protocol.file.allow=always submodule update --init contents
 ```
 
 ## コマンド一覧（開発・テスト・ビルド）
@@ -203,7 +193,7 @@ GFM に加え、以下の独自拡張・プラグイン処理が有効です（�
 
 ### 1. 本番デプロイフロー（`.github/workflows/deploy.yml`）
 
-1. **トリガー**: `main` の CI 成功時、または手動実行（`workflow_dispatch` ※予約投稿公開用の定期 cron 等から呼び出し）。
+1. **トリガー**: `main` への push による CI 成功時、または手動実行（`workflow_dispatch` ※予約投稿公開用の定期 cron 等から呼び出し）。
 2. **ビルドジョブ（権限: `contents: read` のみ）**: シークレットを一切渡さずにビルドを実行し、成果物（`.output/public`）をアーティファクト化。必須ファイル（`index.html`, `404.html`, `.htaccess`, `robots.txt`, `sitemap.xml`）の欠損や容量超過（**750MB 超で警告、1GB 超で中断**）を検査します。
 3. **デプロイジョブ**: GitHub App の短命トークンを用い、`deploy-staging` 経由で GitHub API から**署名付き（Verified）の孤立コミット**を作成して `deploy` ブランチを force 更新します（履歴肥大化防止のため単一コミットで上書き）。ホスティング（Apache）側がこの `deploy` ブランチを自動デプロイします。
 4. **Discord 通知（`scripts/notify-discord.ts`）**: 更新前後の `feed.xml` の差分から新規記事を検出し、Discord Bot（または Webhook）で通知します（初回や一度に 10 件超の増加時は誤検知防止のためスキップ）。
