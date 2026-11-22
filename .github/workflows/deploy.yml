@@ -1,0 +1,179 @@
+name: deploy
+on:
+  workflow_run:
+    workflows:
+      - ci
+    types:
+      - completed
+    branches:
+      - main
+  # 予約投稿を公開するための、毎日の再ビルド（外部の cron から呼び出す）
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # シークレットを使わずにビルドする（デプロイトークンから隔離する）
+  build:
+    concurrency:
+      group: build-${{ github.event.workflow_run.head_sha || github.sha }}
+      cancel-in-progress: true
+    if: (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.id == github.repository_id && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 記事の更新日を Git の履歴から求めるため、全履歴と記事のサブモジュールが必要
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          submodules: true
+          persist-credentials: false
+
+      # セットアップ、スキャン、ビルドは、blog-contents の CI と共有する手順（.github/actions/build）
+      - name: Build
+        uses: ./.github/actions/build
+        env:
+          NUXT_PUBLIC_GOOGLE_ANALYTICS_ID: ${{ vars.NUXT_PUBLIC_GOOGLE_ANALYTICS_ID }}
+
+      # ホスティングの容量（1GB）に対して、ファイル数と合計の容量をログに出し、750MB を超えたら警告、1GB を超えたらデプロイしない
+      # .htaccess（隠しファイル）が欠けるとヘッダーと 404 の設定が消えるため、公開に必要なファイルがそろっているかも確かめる
+      - name: Check the output
+        working-directory: .output/public
+        run: |
+          for file in index.html 404.html .htaccess robots.txt sitemap.xml; do
+            if [ ! -f "$file" ]; then
+              echo "::error::出力に $file がありません。"
+              exit 1
+            fi
+          done
+          count=$(find . -type f | wc -l)
+          bytes=$(du -sb . | cut -f1)
+          echo "files: $count, size: $((bytes / 1000000)) MB"
+          if [ "$bytes" -gt 1000000000 ]; then
+            echo "::error::出力の容量が $((bytes / 1000000)) MB です。ホスティングの容量（1GB）を超えるため、デプロイしません。"
+            exit 1
+          elif [ "$bytes" -gt 750000000 ]; then
+            echo "::warning::出力の容量が $((bytes / 1000000)) MB です。ホスティングの容量（1GB）に近づいています。"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site
+          path: .output/public
+          # .htaccess を含める
+          include-hidden-files: true
+          retention-days: 1
+
+  # 出力を deploy ブランチ（生成物だけを置くブランチ）に反映する
+  # ホスティングが deploy ブランチの更新を検知して公開する
+  deploy:
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: site
+          path: site
+
+      - name: Check main HEAD
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          actual_sha=$(gh api repos/${{ github.repository }}/commits/main --jq .sha)
+          if [ "$actual_sha" = "$EXPECTED_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::newer commit on main; skipping deploy"
+          fi
+
+      # deploy ブランチは、Rulesets でこの GitHub App だけが更新できるようにする
+      - name: Create GitHub App token
+        if: steps.head.outputs.deploy == 'true'
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DEPLOY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      # 通知のために、push する前の deploy ブランチの feed.xml を取っておく（ない場合は通知しない）
+      - name: Save previous feed
+        if: steps.head.outputs.deploy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh api -H "Accept: application/vnd.github.raw" "repos/$REPOSITORY/contents/feed.xml?ref=deploy" > "$RUNNER_TEMP/previous-feed.xml" || rm -f "$RUNNER_TEMP/previous-feed.xml"
+
+      # deploy ブランチを、出力（隠しファイルを含む）だけを持つ 1 つのコミットに置き換える（履歴を積まないため、毎回 force で更新する）
+      # GitHub App の名義で署名されたコミットにするため、コミットは API で作る
+      # API はファイルを受け取れないため、出力のツリーを、仮のコミットとして deploy-staging ブランチに push してから使う
+      - name: Deploy
+        if: steps.head.outputs.deploy == 'true'
+        working-directory: site
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          git init -q
+          git add -A
+          tree=$(git write-tree)
+          staging=$(git -c user.name=deploy -c user.email=deploy@localhost commit-tree "$tree" -m staging)
+          git push -q --force "https://x-access-token:$GH_TOKEN@github.com/$REPOSITORY.git" "$staging:refs/heads/deploy-staging"
+          commit=$(gh api "repos/$REPOSITORY/git/commits" -f message="Deploy $SHA" -f tree="$tree" --jq .sha)
+          if gh api "repos/$REPOSITORY/git/ref/heads/deploy" --silent; then
+            gh api -X PATCH "repos/$REPOSITORY/git/refs/heads/deploy" -f sha="$commit" -F force=true --silent
+          else
+            gh api "repos/$REPOSITORY/git/refs" -f ref=refs/heads/deploy -f sha="$commit" --silent
+          fi
+          gh api -X DELETE "repos/$REPOSITORY/git/refs/heads/deploy-staging" --silent
+          echo "deployed $commit (tree $tree, $(git ls-files | wc -l) files)"
+
+      # push に成功した後に新しい記事を Discord に通知する（失敗してもデプロイは失敗にしない）
+      - name: Checkout notify script
+        if: steps.head.outputs.deploy == 'true'
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          sparse-checkout: |
+            .nvmrc
+            scripts/notify-discord.ts
+            plugins/strip-tags.ts
+          sparse-checkout-cone-mode: false
+          path: notify
+          persist-credentials: false
+
+      - name: Set up Node.js
+        if: steps.head.outputs.deploy == 'true'
+        continue-on-error: true
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          node-version-file: notify/.nvmrc
+          install: false
+
+      - name: Notify Discord
+        if: steps.head.outputs.deploy == 'true'
+        continue-on-error: true
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node notify/scripts/notify-discord.ts "$RUNNER_TEMP/previous-feed.xml" site/feed.xml
