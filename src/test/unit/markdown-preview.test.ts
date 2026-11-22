@@ -7,6 +7,10 @@ import preview, { isMarkdown, renderMarkdownPreview } from "../../../plugins/reh
 import type { Root } from "hast";
 
 describe("Markdown preview", () => {
+  it("does not let KaTeX emit arbitrary characters through \\char", async () => {
+    for (const source of ['$\\char"202E$', "$\\@char{8238}$", '$\\char"200B$'])
+      expect(await renderMarkdownPreview(source), source).not.toMatch(/[\u202e]|&#x202e;|&#8238;/i);
+  });
   it.each(["\n", "\r\n"])("hides leading frontmatter with %j line endings", async (newline) => {
     const source = ["---", "title: はじめての記事", "date: 2026-01-01", "---", "", "本文"].join(newline);
     expect(await renderMarkdownPreview(source)).toBe("<p>本文</p>");
@@ -48,7 +52,7 @@ describe("Markdown preview", () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
       const output = await renderMarkdownPreview(
-        "---\ntitle: foo\u200bbar\nurl: '[google.com](//gоogle.com)'\n---\n\n本文"
+        "---\ntitle: foo\u200bbar\nurl: '[google.test](//gоogle.test)'\n---\n\n本文"
       );
       expect(output).toBe("<p>本文</p>");
       expect(warning).not.toHaveBeenCalled();
@@ -139,13 +143,13 @@ content
     expect(output).toContain("-safe-2");
   });
   it("checks protocol-relative links in previews", async () => {
-    const output = await renderMarkdownPreview("[google.com](//gоogle.com)");
+    const output = await renderMarkdownPreview("[google.test](//gоogle.test)");
     expect(output).toContain("url-warning");
     expect(output).toContain("xn--");
   });
   it.each(["。", "．", "｡"])("warns about Unicode dot %s in a displayed URL", async (dot) => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const output = await renderMarkdownPreview(`[https://google${dot}com](https://evil.example)`);
+    const output = await renderMarkdownPreview(`[https://google${dot}test](https://evil.example)`);
     expect(output).toContain("url-warning");
     expect(output).toContain("evil.example");
     expect(warning).toHaveBeenCalled();
@@ -162,7 +166,7 @@ content
           {
             type: "element",
             tagName: "pre",
-            properties: { language: "md", code: "[google.com](//gоogle.com)" },
+            properties: { language: "md", code: "[google.test](//gоogle.test)" },
             children: [],
           },
         ],

@@ -367,6 +367,8 @@ it("applies Git dates, profile validation and symlink checks in the content hook
   const dates = vi.fn();
   vi.doMock("../../../plugins/git-updated.ts", () => ({ lastCommitDate: dates }));
   vi.resetModules();
+  // 読み直した url-guard に、テスト用の偽装の元のドメインを足し直す
+  await import("../setup-domains.ts");
   const { afterParse } = await import("../../../plugins/content-hook.ts");
   const dir = temp();
   mkdirSync(join(dir, "writer/assets"), { recursive: true });
@@ -413,9 +415,9 @@ it("applies Git dates, profile validation and symlink checks in the content hook
     websiteAscii: "xn--r8jz45g.xn--zckzah",
     websiteWarning: false,
   });
-  const suspiciousWebsite = { name: "B", website: "https://goog1e.com" };
+  const suspiciousWebsite = { name: "B", website: "https://goog1e.test" };
   await afterParse({ collection: { name: "authors" }, file: { path: profile }, content: suspiciousWebsite }, options);
-  expect(suspiciousWebsite).toMatchObject({ websiteHost: "goog1e.com", websiteWarning: true });
+  expect(suspiciousWebsite).toMatchObject({ websiteHost: "goog1e.test", websiteWarning: true });
   const unsafe = { title: "A\u202eB", date: "2020-01-01", meta: { tags: ["x\u200by"], nested: { name: "a\u061cb" } } };
   await afterParse({ collection: { name: "posts" }, file: { path: post }, content: unsafe }, options);
   expect(unsafe).toMatchObject({ title: "AB", meta: { tags: ["xy"], nested: { name: "ab" } } });

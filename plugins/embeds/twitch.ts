@@ -11,7 +11,7 @@ export const twitch: Embed = {
     const slug =
       hostname === "clips.twitch.tv"
         ? /^\/([\w-]+)\/?$/.exec(pathname)?.[1]
-        : hostname === "www.twitch.tv"
+        : ["twitch.tv", "www.twitch.tv", "m.twitch.tv"].includes(hostname)
           ? /^\/[\w-]+\/clip\/([\w-]+)\/?$/.exec(pathname)?.[1]
           : undefined;
     if (slug)

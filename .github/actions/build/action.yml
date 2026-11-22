@@ -92,6 +92,7 @@ runs:
         PREVIEW: ${{ inputs.preview == 'true' && '1' || '' }}
         PREVIEW_PR: ${{ inputs.preview-pr }}
         SITE_URL: ${{ inputs.site-url }}
+        GITHUB_TOKEN: ${{ github.token }}
 
     # 変換した画像やリンクカードの画像を含むビルドの出力をスキャンする（見つかったファイルを削除して警告する）
     - name: Scan build output

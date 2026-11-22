@@ -142,7 +142,7 @@ describe("link regressions", () => {
   });
   it.each(["。", "．", "｡"])("warns about Unicode dot %s in a displayed URL", (dot) => {
     const parser = unified().use(remarkParse).use(remarkRehype);
-    const tree = parser.runSync(parser.parse(`[https://google${dot}com](https://evil.example)`));
+    const tree = parser.runSync(parser.parse(`[https://google${dot}test](https://evil.example)`));
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     urlGuard()(tree, new VFile({ path: "post.md" }));
     expect(JSON.stringify(tree)).toContain("url-warning");
@@ -150,7 +150,7 @@ describe("link regressions", () => {
     expect(warning).toHaveBeenCalled();
     warning.mockRestore();
   });
-  it.each(["[google.com](//gоogle.com)", '<a href="//gоogle.com">google.com</a>'])(
+  it.each(["[google.test](//gоogle.test)", '<a href="//gоogle.test">google.test</a>'])(
     "checks protocol-relative Markdown and HTML: %s",
     (source) => {
       const parser = unified().use(remarkParse).use(remarkRehype);
@@ -166,12 +166,12 @@ describe("link regressions", () => {
   it.each(["text", "md"])("checks the filename link of a %s code block", (language) => {
     const tree: Root = {
       type: "root",
-      children: [h("pre", { language, filename: "example.txt", meta: "[example.txt] href=https://gоogle.com" })],
+      children: [h("pre", { language, filename: "example.txt", meta: "[example.txt] href=https://gоogle.test" })],
     };
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     urlGuard()(tree, new VFile({ path: "post.md" }));
     expect(tree.children[0]).toMatchObject({
-      properties: { filenameUrlHost: "xn--gogle-jye.com", filenameUrlWarning: true },
+      properties: { filenameUrlHost: "xn--gogle-jye.test", filenameUrlWarning: true },
     });
     expect(warning).toHaveBeenCalled();
     warning.mockRestore();

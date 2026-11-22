@@ -40,7 +40,7 @@ export default defineNitroPlugin((nitroApp) => {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.twitter.com https://*.twimg.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com",
+      "connect-src 'self' https://*.twitter.com https://*.twimg.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
       `frame-src ${frames.join(" ")}`,
       "object-src 'none'",
       "base-uri 'self'",

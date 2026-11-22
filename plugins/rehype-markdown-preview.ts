@@ -11,6 +11,7 @@ import { visit } from "unist-util-visit";
 import { VFile } from "vfile";
 
 import { highlight } from "./highlight.ts";
+import { katexOptions } from "./markdown-options.ts";
 import anchorGuard, { anchorShape } from "./rehype-anchor-guard.ts";
 import callouts from "./rehype-callouts.ts";
 import externalLinks from "./rehype-external-links.ts";
@@ -52,7 +53,7 @@ const processor = unified()
   .use(urlGuard)
   .use(anchorGuard)
   .use(callouts)
-  .use(rehypeKatex);
+  .use(rehypeKatex, katexOptions);
 
 const highlighter = createHighlighter({ themes: Object.values(highlight.theme), langs: [] });
 
