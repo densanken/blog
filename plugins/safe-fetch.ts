@@ -3,6 +3,15 @@ import { BlockList, isIP } from "node:net";
 
 import { Agent, fetch } from "undici";
 
+// 応答が成功でなかったことを表す（呼び出し側が、ステータスで失敗の原因を区別できるよう、status を保持する）
+export class HttpError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(`HTTP ${String(status)}`);
+    this.status = status;
+  }
+}
+
 // 記事の作者が指定した URL をビルド時に取得するための fetch
 // ビルドを実行する環境の内部ネットワークへ到達させないよう、公開アドレス以外への接続を拒否する
 const blocked = new BlockList();
@@ -87,7 +96,7 @@ const get = async (href: string, { maxBytes, truncate }: { maxBytes: number; tru
     }
     if (!response.ok) {
       await response.body?.cancel();
-      throw new Error(`HTTP ${String(response.status)}`);
+      throw new HttpError(response.status);
     }
     const chunks = [];
     let size = 0;
