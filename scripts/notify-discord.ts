@@ -1,7 +1,8 @@
 // 新しく公開された記事を、Discord に通知する（deploy ワークフローが、deploy ブランチの更新後に呼ぶ）
 // 使い方: node scripts/notify-discord.ts <前回の feed.xml> <今回の feed.xml>
 // シークレットを持つジョブで動かすため、依存のインストールを要さないよう、Node 組み込みの機能だけで書く
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 
 import { stripTags } from "../plugins/strip-tags.ts";
 
@@ -16,7 +17,6 @@ export interface Entry {
   authorUrl: string;
   authorIcon: string;
   published: string;
-  image: string;
 }
 export interface Feed {
   title: string;
@@ -29,7 +29,6 @@ export interface Embed {
   color: number;
   author?: { name: string; url?: string; icon_url?: string };
   footer?: { text: string };
-  image?: { url: string };
 }
 
 // 一度に増えた記事がこの件数を超えたら、誤検知とみなして通知しない
@@ -68,9 +67,6 @@ export const parseFeed = (xml: string): Feed => {
     const block = match[1]!;
     const links = [...block.matchAll(/<link\s[^>]*>/g)].map((link) => link[0]);
     const alternate = links.find((link) => !attribute(link, "rel") || attribute(link, "rel") === "alternate");
-    const enclosure = links.find(
-      (link) => attribute(link, "rel") === "enclosure" && attribute(link, "type").startsWith("image/")
-    );
     const author = /<author(?:\s[^>]*)?>([\s\S]*?)<\/author>/.exec(block);
     return {
       id: text(block, "id"),
@@ -81,7 +77,6 @@ export const parseFeed = (xml: string): Feed => {
       authorUrl: author ? text(author[1]!, "uri") : "",
       authorIcon: author ? attribute(/<media:thumbnail\s[^>]*>/.exec(author[1]!)?.[0] ?? "", "url") : "",
       published: text(block, "published"),
-      image: enclosure ? attribute(enclosure, "href") : "",
     };
   });
   // entry の外にある title（サイト名）を取る
@@ -126,8 +121,59 @@ export const toEmbed = (entry: Entry, siteName: string): Embed => {
       },
     }),
     ...(footer && { footer: { text: truncate(footer, 2048) } }),
-    ...(isHttp(entry.image) && { image: { url: entry.image } }),
   };
+};
+
+export interface Attachment {
+  name: string;
+  data: Buffer;
+}
+
+// 公開前に通知すると、Discord がアイコンを取得できないため、サイト内の画像はビルド済みの出力から読んで添付する
+const maxAttachmentBytes = 8 * 1024 * 1024;
+const readOutput = (dir: string, origin: string, value: string) => {
+  try {
+    const url = new URL(value);
+    if (url.origin !== origin) return undefined;
+    const root = resolve(dir);
+    const path = resolve(join(root, decodeURIComponent(url.pathname)));
+    if (!path.startsWith(root + sep) || statSync(path).size > maxAttachmentBytes) return undefined;
+    return readFileSync(path);
+  } catch {
+    return undefined;
+  }
+};
+// 読めた画像は attachment:// に置き換える、読めなければ URL のままにする
+// 同じ画像（同じ著者のアイコン）は 1 つのファイルにまとめ、files には embed ごとに使うファイルを入れる
+export const attachLocal = (embeds: Embed[], dir: string): { embeds: Embed[]; files: Attachment[][] } => {
+  const known = new Map<string, Attachment | undefined>();
+  const files: Attachment[][] = [];
+  const result = embeds.map((embed): Embed => {
+    const used: Attachment[] = [];
+    files.push(used);
+    let origin: string;
+    try {
+      origin = new URL(embed.url).origin;
+    } catch {
+      return embed;
+    }
+    const localize = (value: string) => {
+      if (!known.has(value)) {
+        const data = readOutput(dir, origin, value);
+        const name = `${String(known.size)}${extname(basename(new URL(value).pathname))}`;
+        known.set(value, data && { name, data });
+      }
+      const file = known.get(value);
+      if (!file) return value;
+      if (!used.includes(file)) used.push(file);
+      return `attachment://${file.name}`;
+    };
+    return {
+      ...embed,
+      ...(embed.author?.icon_url && { author: { ...embed.author, icon_url: localize(embed.author.icon_url) } }),
+    };
+  });
+  return { embeds: result, files };
 };
 
 // Discord は 1 メッセージの embed 全体で、title・description・author.name・footer.text の合計を 6000 文字以下に制限する
@@ -138,19 +184,38 @@ export const embedSize = (embed: Embed) =>
   (embed.author?.name.length ?? 0) +
   (embed.footer?.text.length ?? 0);
 
-// 件数（maxEmbeds）と文字数（maxEmbedTotal）の両方が上限に収まるように分割する
-export const chunkEmbeds = (embeds: Embed[]) => {
+// Discord が 1 メッセージに許す添付の数と、リクエスト全体の大きさ（上限は 25 MiB、JSON などの分の余裕を見る）
+export const maxAttachments = 10;
+export const maxAttachmentTotal = 20 * 1024 * 1024;
+
+// 件数（maxEmbeds）・文字数（maxEmbedTotal）・添付の数と大きさの全部が上限に収まるように分割する
+// files[i] は embeds[i] が使う添付、同じ添付は 1 メッセージ内で 1 回だけ数える
+export const chunkEmbeds = (embeds: Embed[], files: Attachment[][] = []) => {
   const parts: Embed[][] = [];
   let total = 0;
-  for (const embed of embeds) {
+  let attached = new Set<Attachment>();
+  let bytes = 0;
+  for (const [index, embed] of embeds.entries()) {
     const size = embedSize(embed);
+    const added = (files[index] ?? []).filter((file) => !attached.has(file));
+    const addedBytes = added.reduce((sum, file) => sum + file.data.length, 0);
     const last = parts.at(-1);
-    if (last && last.length < maxEmbeds && total + size <= maxEmbedTotal) {
+    if (
+      last &&
+      last.length < maxEmbeds &&
+      total + size <= maxEmbedTotal &&
+      attached.size + added.length <= maxAttachments &&
+      bytes + addedBytes <= maxAttachmentTotal
+    ) {
       last.push(embed);
       total += size;
+      for (const file of added) attached.add(file);
+      bytes += addedBytes;
     } else {
       parts.push([embed]);
       total = size;
+      attached = new Set(files[index]);
+      bytes = [...attached].reduce((sum, file) => sum + file.data.length, 0);
     }
   }
   return parts;
@@ -158,19 +223,32 @@ export const chunkEmbeds = (embeds: Embed[]) => {
 
 export type Env = Record<string, string | undefined>;
 
-const post = async (url: string, headers: Record<string, string>, embeds: Embed[], fetcher: typeof fetch) => {
+const post = async (
+  url: string,
+  headers: Record<string, string>,
+  embeds: Embed[],
+  files: Attachment[],
+  fetcher: typeof fetch
+) => {
+  // 記事のタイトルなどにメンションが含まれても、誰にも通知しない
+  const payload = JSON.stringify({ embeds, allowed_mentions: { parse: [] } });
+  const form = new FormData();
+  form.set("payload_json", payload);
+  for (const [index, file] of files.entries())
+    form.set(`files[${String(index)}]`, new Blob([new Uint8Array(file.data)]), file.name);
   const response = await fetcher(url, {
     method: "POST",
-    headers: { "content-type": "application/json", ...headers },
-    // 記事のタイトルなどにメンションが含まれても、誰にも通知しない
-    body: JSON.stringify({ embeds, allowed_mentions: { parse: [] } }),
+    // 添付があるときは multipart（境界つきの content-type は fetch が付ける）
+    ...(files.length > 0
+      ? { headers, body: form }
+      : { headers: { "content-type": "application/json", ...headers }, body: payload }),
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
 };
 
 // Bot で送り、失敗したとき（未設定を含む）だけ Webhook で送る、どちらも使えなければ false
-export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fetch) => {
+export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fetch, files: Attachment[] = []) => {
   const { DISCORD_BOT_TOKEN: token, DISCORD_CHANNEL_ID: channel, DISCORD_WEBHOOK_URL: webhook } = env;
   if (token && channel && /^\d+$/.test(channel)) {
     try {
@@ -178,6 +256,7 @@ export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fe
         `https://discord.com/api/v10/channels/${channel}/messages`,
         { authorization: `Bot ${token}` },
         embeds,
+        files,
         fetcher
       );
       return true;
@@ -187,7 +266,7 @@ export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fe
   }
   if (webhook) {
     try {
-      await post(webhook, {}, embeds, fetcher);
+      await post(webhook, {}, embeds, files, fetcher);
       return true;
     } catch (error) {
       console.warn(`::warning::Discord の Webhook での送信に失敗しました（${(error as Error).message}）。`);
@@ -201,7 +280,8 @@ export const notify = async (
   previousXml: string | undefined,
   currentXml: string,
   env: Env,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  outputDir?: string
 ) => {
   if (previousXml === undefined || previousXml.trim() === "") return "skipped: no previous feed";
   const current = parseFeed(currentXml);
@@ -218,8 +298,12 @@ export const notify = async (
   // 古い記事から順に送る
   const embeds = added.reverse().map((entry) => toEmbed(entry, current.title));
   let sent = 0;
-  for (const part of chunkEmbeds(embeds)) {
-    if (!(await send(part, env, fetcher))) return `failed: sent ${String(sent)} of ${String(embeds.length)}`;
+  const local = outputDir ? attachLocal(embeds, outputDir) : { embeds, files: embeds.map((): Attachment[] => []) };
+  let offset = 0;
+  for (const part of chunkEmbeds(local.embeds, local.files)) {
+    const files = [...new Set(local.files.slice(offset, offset + part.length).flat())];
+    offset += part.length;
+    if (!(await send(part, env, fetcher, files))) return `failed: sent ${String(sent)} of ${String(embeds.length)}`;
     sent += part.length;
   }
   return `sent ${String(sent)}`;
@@ -237,7 +321,9 @@ if (import.meta.main) {
     };
     const currentXml = read(current);
     console.log(
-      currentXml === undefined ? "skipped: no current feed" : await notify(read(previous), currentXml, process.env)
+      currentXml === undefined
+        ? "skipped: no current feed"
+        : await notify(read(previous), currentXml, process.env, fetch, dirname(current!))
     );
   } catch (error) {
     console.warn(`::warning::Discord への通知に失敗しました（${(error as Error).message}）。`);
