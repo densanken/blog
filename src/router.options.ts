@@ -14,15 +14,17 @@ export default {
   scrollBehavior(to, from, savedPosition) {
     const nuxtApp = useNuxtApp();
     const router = useRouter();
+    // 戻る・進むでは、ハッシュより、履歴に保存した位置（離れたときの、読み進めた位置）を優先する（Nuxt の既定と同じ）
+    // 新しくリンクをたどったときは、保存した位置がないため、ハッシュの見出しにスクロールする
     const position = () => {
-      if (to.hash) return { el: to.hash, top: scrollMarginTop(to.hash), behavior: "instant" as const };
       if (savedPosition) return { ...savedPosition, behavior: "instant" as const };
+      if (to.hash) return { el: to.hash, top: scrollMarginTop(to.hash), behavior: "instant" as const };
       return { left: 0, top: 0, behavior: "instant" as const };
     };
     if (from === START_LOCATION) return position();
     if (to.path === from.path) {
-      if (to.hash) return { el: to.hash, top: scrollMarginTop(to.hash), behavior: "auto" };
       if (savedPosition) return { ...savedPosition, behavior: "instant" };
+      if (to.hash) return { el: to.hash, top: scrollMarginTop(to.hash), behavior: "auto" };
       return from.hash ? { left: 0, top: 0, behavior: "auto" } : false;
     }
     return new Promise((resolve) => {

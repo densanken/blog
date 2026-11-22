@@ -3,7 +3,7 @@ export const analyticsScripts = (id: string) =>
     ? [
         { src: `https://www.googletagmanager.com/gtag/js?id=${id}`, async: true },
         {
-          innerHTML: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config',${JSON.stringify(id)});`,
+          innerHTML: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${id}');`,
         },
       ]
     : [];

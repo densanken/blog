@@ -9,7 +9,7 @@ import postMeta from "../../../plugins/remark-post-meta.ts";
 import { tocWithIcons } from "../../server/utils/toc.ts";
 import { lucideElements } from "../../shared/utils/lucide.ts";
 
-const parse = (source: string) =>
+const parse = (source: string, articleContext: { excerpt?: string } = {}) =>
   parseMarkdown(
     source,
     {
@@ -23,7 +23,8 @@ const parse = (source: string) =>
       },
       toc: { depth: 3, searchDepth: 3 },
     },
-    { fileOptions: { path: "/contents/writer/post.md" } }
+    // remark-post-meta は、抜粋を、本番と同じく、記事の解析ごとの articleContext に書き込む
+    { fileOptions: { path: "/contents/writer/post.md", articleContext } }
   );
 
 describe("Lucide icons", () => {
@@ -134,6 +135,16 @@ describe("Lucide icons", () => {
     expect(body).toContain('"role":"img"');
     expect(JSON.stringify(result.toc)).not.toMatch(/rocket|circle-check|Complete/);
     expect(result.data.description).not.toMatch(/rocket|circle-check|Complete/);
+  });
+  it("keeps icon names and labels out of the excerpt that is actually delivered", async () => {
+    // 先頭が見出しの記事では、MDC の description は空になり、配信される抜粋は、remark-post-meta が articleContext に書く
+    const context: { excerpt?: string } = {};
+    await parse(
+      '## Heading :icon{name="rocket"}\n\nText :icon{name="rocket"} and :icon{name="circle-check" label="Complete"}.',
+      context
+    );
+    expect(context.excerpt).toContain("Text");
+    expect(context.excerpt).not.toMatch(/rocket|circle-check|Complete/);
   });
 
   it("warns and drops unknown icons and ignores arbitrary attributes", async () => {

@@ -621,19 +621,22 @@ try {
   await assertHashPosition("github-1");
   await page.goForward();
   await assertHashPosition("github");
+  // 見出しの位置とは別の位置まで読み進めてから、別のページへ移動し、戻る
   await page.evaluate(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
+    window.scrollTo({ top: 300, behavior: "instant" });
   });
   await page.evaluate(() => {
     const link = document.createElement("a");
     link.href = "/@writer/hello/";
     link.textContent = "Return to article";
     document.querySelector(".prose")!.append(link);
+    // 要素のクリックでは、スクロールが動くため、DOM のクリックで移動する
+    link.click();
   });
-  await page.getByText("Return to article").click();
   await page.waitForURL(`${origin}/@writer/hello/`);
   await page.goBack();
-  await assertHashPosition("github");
+  // 戻るときは、ハッシュの見出しではなく、離れたときの位置に戻る
+  await page.waitForFunction(() => Math.abs(window.scrollY - 300) < 3);
   await page.goto(`${origin}/@writer/post02/#missing`);
   await page.waitForLoadState("networkidle");
   await page.goto(`${origin}/@writer/hello/`);
@@ -1253,30 +1256,13 @@ try {
   assert.equal(await page.locator("header.site-header").count(), 1);
   assert.equal(await page.locator("footer.site-footer a[href='/privacy/']").count(), 1);
   const paragraphs = await page.locator("main .prose p").allTextContents();
+  // 測定 ID を設定していないビルド（GA のタグを出さない）では、GA を使用していると案内しない
   assert.deepEqual(
     paragraphs.map((paragraph) => paragraph.replace(/\s+/g, " ").trim()),
-    [
-      "このサイトでは利用状況を分析するために Google アナリティクス を使用しています。",
-      "Google アナリティクス は Cookie を使用して当サイトへのアクセス情報を Google に送信しています。",
-      "このツールを通じて取得したデータは本サイト改善の目的に限って利用します。氏名、住所、電話番号、メールアドレス等の個人を直接特定する情報を取得することはありません。",
-      "Google アナリティクス の規約の詳細に関しましては「Google アナリティクス利用規約」をご覧ください。",
-      "Google アナリティクス におけるデータの収集・処理の仕組みについては「Google のサービスを使用するサイトやアプリから収集した情報の Google による使用」をご覧ください。",
-    ]
+    ["このサイトでは現在、アクセス情報を分析するツールを使用していません。"]
   );
-  const links = page.locator("main .prose a");
-  const urls = [
-    "https://marketingplatform.google.com/about/analytics/terms/jp/",
-    "https://policies.google.com/technologies/partner-sites",
-  ];
-  assert.equal(await links.count(), urls.length);
-  for (const [index, url] of urls.entries()) {
-    const link = links.nth(index);
-    assert.equal(await link.getAttribute("href"), url);
-    assert.equal(await link.getAttribute("target"), "_blank");
-    assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
-    assert.equal(await link.locator('svg[aria-hidden="true"]').count(), 1);
-    assert.equal(await link.locator("svg:last-child").count(), 1);
-  }
+  assert.equal(await page.locator("main .prose a").count(), 0);
+  assert.equal(await page.locator('script[src*="googletagmanager.com"]').count(), 0);
   await page.goto(`${origin}/`);
   await page.waitForFunction(
     () =>
@@ -1434,6 +1420,66 @@ try {
     assert.equal(await page.locator("header.site-header").count(), 1);
     assert.equal(await page.locator("footer.site-footer").count(), 1);
   }
+  // 不正なフラグメント（`#100%`）でも、記事の初期化は止まらない（初期化の例外は errors に入り、下の確認で失敗になる）
+  await page.goto(`${origin}/@writer/hello/#100%`);
+  await page.locator(".prose .code-copy").first().waitFor();
+  await page.waitForLoadState("networkidle");
+  // 同じページの見出しへのルート相対のリンクも、なめらかにスクロールする（smooth-anchor を付ける）
+  await page.goto(`${origin}/@writer/post02/`);
+  await page.waitForLoadState("networkidle");
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains("smooth-anchor")), false);
+  await page.evaluate(() => {
+    const link = document.createElement("a");
+    link.href = "/@writer/post02/#github";
+    link.textContent = "same page anchor";
+    document.querySelector(".prose")!.append(link);
+  });
+  await page.getByText("same page anchor").click();
+  await page.waitForURL(`${origin}/@writer/post02/#github`);
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains("smooth-anchor")), true);
+  // テーマのメニューは、Tab と Shift+Tab で、閉じて外へ移動する（項目の間を移動しない）
+  await page.goto(`${origin}/@writer/hello/`);
+  await page.waitForLoadState("networkidle");
+  for (const key of ["Tab", "Shift+Tab"]) {
+    await page.locator('button[popovertarget="theme-menu"]').click();
+    await page.locator("#theme-menu").waitFor({ state: "visible" });
+    // メニューを開くと、現在の項目にフォーカスが移る（移る前に押すと、メニューの外のキー操作になる）
+    await page.waitForFunction(() => !!document.activeElement?.closest("#theme-menu"));
+    await page.keyboard.press(key);
+    assert.equal(await page.locator("#theme-menu").isVisible(), false, `${key} closes the theme menu`);
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest("#theme-menu")), false);
+  }
+  // 検索結果の Ctrl/Cmd+クリックは、現在のタブを遷移させず、ブラウザーの既定（別のタブ）に任せる
+  await page.goto(`${origin}/`);
+  await page.waitForLoadState("networkidle");
+  await page.keyboard.press("Control+k");
+  await page.getByRole("searchbox", { name: "検索語" }).fill("searchable unique content");
+  const searchHit = page.locator(".search-hit");
+  await searchHit.first().waitFor();
+  const [newTab] = await Promise.all([
+    context.waitForEvent("page"),
+    searchHit.first().click({ modifiers: ["ControlOrMeta"] }),
+  ]);
+  assert.equal(page.url(), `${origin}/`);
+  await newTab.waitForURL(/\/@writer\/hello\/$/);
+  await newTab.close();
+  // 脚注のプレビューは、画面の下に切れず、収まらなければ参照の上に置く
+  const viewport = page.viewportSize();
+  assert.ok(viewport);
+  await page.goto(`${origin}/@writer/hello/`);
+  await page.waitForLoadState("networkidle");
+  await page.setViewportSize({ width: viewport.width, height: 400 });
+  const footnoteRef = page.locator("a[data-footnote-ref]").first();
+  await footnoteRef.evaluate((element) => {
+    window.scrollBy(0, element.getBoundingClientRect().bottom - window.innerHeight + 4);
+  });
+  await footnoteRef.focus();
+  const tip = await page.locator("#footnote-tip").boundingBox();
+  assert.ok(
+    tip && tip.y >= 0 && tip.y + tip.height <= 400,
+    `footnote tip is within the viewport: ${JSON.stringify(tip)}`
+  );
+  await page.setViewportSize(viewport);
   assert.deepEqual(errors, []);
   await context.close();
   process.stdout.write("Browser assertions passed\n");

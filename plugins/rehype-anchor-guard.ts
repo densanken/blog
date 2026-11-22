@@ -1,4 +1,4 @@
-import Slugger from "github-slugger";
+import Slugger, { slug } from "github-slugger";
 import { toString } from "hast-util-to-string";
 import { visit } from "unist-util-visit";
 
@@ -57,7 +57,14 @@ export default () => (tree: Root, file: VFile) => {
     const heading = /^h[1-6]$/.test(node.tagName);
     const existing = node.properties.id;
     if (heading || typeof existing === "string") {
-      const original = typeof existing === "string" && existing ? existing : slugger.slug(toString(node));
+      const text = toString(node);
+      // 絵文字や記号だけの見出しは、スラッグが空になり、id が空になる（目次のリンクも、先頭へ戻るリンクになる）ため、代わりの名前をつける
+      const original =
+        typeof existing === "string" && existing
+          ? existing
+          : slug(text) === ""
+            ? slugger.slug("section")
+            : slugger.slug(text);
       const id = heading ? original.replace(/-+/g, "-").replace(/^-|-$/g, "").replace(/^(\d)/, "_$1") : original;
       anchors.push({ node, key: "id", original, id });
     }

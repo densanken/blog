@@ -41,6 +41,8 @@ const links = computed(() => hits.value.flatMap((hit) => [hit, ...hit.subs]));
 const pagefindUrl = "/pagefind/pagefind.js";
 let pagefind: Pagefind | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
+// 入力が変わるたびに増やす。古い検索の結果やエラーは、世代が違えば、捨てる
+let generation = 0;
 
 const open = () => {
   dialog.value!.showModal();
@@ -73,6 +75,8 @@ const toParts = (excerpt: string): Parts =>
 
 const search = async () => {
   const text = query.value.trim();
+  const current = ++generation;
+  const stale = () => current !== generation;
   active.value = 0;
   if (!text) {
     hits.value = [];
@@ -84,7 +88,8 @@ const search = async () => {
   try {
     pagefind ??= (await import(/* @vite-ignore */ pagefindUrl)) as Pagefind;
   } catch {
-    status.value = "missing";
+    // 読み込み中に入力が変わっていたら、今の入力の状態を、古いエラーで上書きしない
+    if (!stale()) status.value = "missing";
     return;
   }
   let results;
@@ -93,12 +98,14 @@ const search = async () => {
     ({ results } = await pagefind.search(text));
     data = await Promise.all(results.slice(0, maxHits).map((result) => result.data()));
   } catch {
-    if (text === query.value.trim()) status.value = "error";
+    if (!stale()) status.value = "error";
     return;
   }
   // 入力が変わっていたら、古い結果は捨てる
-  if (text !== query.value.trim()) return;
+  if (stale()) return;
   total.value = results.length;
+  // 結果を差し替えるので、選択位置を先頭に戻す（旧結果の位置が、新しい結果の範囲外になるのを防ぐ）
+  active.value = 0;
   hits.value = data.map(({ url, meta, excerpt, sub_results }) => ({
     url,
     title: meta.title,
@@ -118,6 +125,7 @@ const search = async () => {
 // 入力が止まってから検索する
 const onInput = () => {
   clearTimeout(timer);
+  generation++;
   if (query.value.trim()) status.value = "searching";
   timer = setTimeout(() => void search(), 150);
 };
@@ -127,9 +135,18 @@ const go = async (url: string) => {
   await navigateTo(url);
 };
 
+// 修飾キーつきや、主ボタン以外のクリックは、ブラウザーに任せる（別タブで開く操作を取り消さない）
+const onLinkClick = (event: MouseEvent, url: string) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  void go(url);
+};
+
 const onInputKeydown = (event: KeyboardEvent) => {
   // 日本語の変換中の Enter と矢印キーは、変換の操作なので（Safari では isComposing が false になるため、key が Process のものも除く）、扱わない
-  if (event.isComposing || event.key === "Process" || !links.value.length) return;
+  if (event.isComposing || event.key === "Process") return;
+  // 表示している結果が、今の入力に対するものでなければ（検索中、入力が空など）、前の結果を操作しない（Enter は、フォームの送信になる）
+  if (status.value !== "idle" || !query.value.trim() || !links.value.length) return;
   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
     active.value = (active.value + (event.key === "ArrowDown" ? 1 : -1) + links.value.length) % links.value.length;
@@ -177,7 +194,7 @@ const onInputKeydown = (event: KeyboardEvent) => {
               class="search-hit"
               :aria-current="links.indexOf(hit) === active || undefined"
               :data-active="links.indexOf(hit) === active || undefined"
-              @click.prevent="go(hit.url)"
+              @click="onLinkClick($event, hit.url)"
               @mousemove="active = links.indexOf(hit)"
             >
               <span class="search-hit-title">{{ hit.title }}</span>
@@ -202,7 +219,7 @@ const onInputKeydown = (event: KeyboardEvent) => {
                   class="search-hit"
                   :aria-current="links.indexOf(sub) === active || undefined"
                   :data-active="links.indexOf(sub) === active || undefined"
-                  @click.prevent="go(sub.url)"
+                  @click="onLinkClick($event, sub.url)"
                   @mousemove="active = links.indexOf(sub)"
                 >
                   <span class="search-hit-title">{{ sub.title }}</span>

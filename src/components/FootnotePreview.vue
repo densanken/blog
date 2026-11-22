@@ -31,8 +31,11 @@ const show = (reference: HTMLElement) => {
   tip.value!.replaceChildren(...content.childNodes);
   tip.value!.hidden = false;
   const rect = reference.getBoundingClientRect();
-  const { offsetWidth } = tip.value!;
-  tip.value!.style.top = `${String(rect.bottom + 6)}px`;
+  const { offsetWidth, offsetHeight } = tip.value!;
+  // 参照の下に置き、画面の下に収まらなければ、参照の上に置く（画面より高い脚注は、CSS の max-height で、内部をスクロールする）
+  const below = rect.bottom + 6;
+  const top = below + offsetHeight + 8 <= window.innerHeight ? below : Math.max(8, rect.top - 6 - offsetHeight);
+  tip.value!.style.top = `${String(top)}px`;
   tip.value!.style.left = `${String(Math.max(8, Math.min(rect.left, window.innerWidth - offsetWidth - 8)))}px`;
   restoreDescription();
   activeReference = reference;

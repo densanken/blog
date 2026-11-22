@@ -32,6 +32,11 @@ const select = (value: (typeof modes)[number]["value"]) => {
 
 // 上下の矢印キーと Home、End で、項目を移動する
 const onKeydown = (event: KeyboardEvent) => {
+  // Tab と Shift+Tab は、項目の間を移動せず、メニューを閉じて、外へ移動する（フォーカスは、メニューを開いたボタンに戻り、そこから進む）
+  if (event.key === "Tab") {
+    menu.value!.hidePopover();
+    return;
+  }
   const items = [...menu.value!.querySelectorAll<HTMLElement>("[role='menuitemradio']")];
   const index = items.indexOf(document.activeElement as HTMLElement);
   const target = {

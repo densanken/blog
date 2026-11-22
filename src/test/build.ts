@@ -204,11 +204,20 @@ writeFileSync(
   join(work, "plugins/git-updated.ts"),
   'export const lastCommitDate = (_contents, path) => path.endsWith("/post20.md") ? "2020-02-01" : undefined;\n'
 );
+// 子プロセスは、本番の既定の設定で生成する（実行した環境の PREVIEW、SITE_URL、厳格モード、GA の指定を引き継がない）
+const defaults = {
+  ...process.env,
+  PREVIEW: "",
+  PREVIEW_PR: "",
+  SITE_URL: "",
+  CONTENT_STRICT: "",
+  NUXT_PUBLIC_GOOGLE_ANALYTICS_ID: "",
+};
 const run = (command: string, args: string[]) =>
   execFileSync(join(root, "node_modules/.bin", command), args, {
     cwd: work,
     stdio: "inherit",
-    env: { ...process.env, CI: "true" },
+    env: { ...defaults, CI: "true" },
   });
 mkdirSync(join(work, ".output/public"), { recursive: true });
 execFileSync(process.execPath, ["scripts/prune-cards.ts"], { cwd: work, stdio: "inherit" });
@@ -228,8 +237,10 @@ for (const stem of ["", "writer/future", "writer/missing"]) {
   const generation = spawnSync(join(root, "node_modules/.bin/nuxt"), ["generate"], {
     cwd: work,
     encoding: "utf8",
-    env: { ...process.env, CI: "true", GITHUB_ACTIONS: "true" },
+    env: { ...defaults, CI: "true", GITHUB_ACTIONS: "true" },
   });
+  // 起動に失敗したとき（status が null で、stdout と stderr もない）は、原因を先に示す
+  if (generation.error) throw generation.error;
   assert.equal(generation.status, 0, `intro generation failed for ${stem}: ${generation.stderr}`);
   if (writerPins.indexOf("bad-mermaid") < pinnedPostsLimit)
     assert.match(
@@ -249,8 +260,9 @@ rmSync(join(work, ".output"), { recursive: true, force: true });
 const generated = spawnSync(join(root, "node_modules/.bin/nuxt"), ["generate"], {
   cwd: work,
   encoding: "utf8",
-  env: { ...process.env, CI: "true", GITHUB_ACTIONS: "true" },
+  env: { ...defaults, CI: "true", GITHUB_ACTIONS: "true" },
 });
+if (generated.error) throw generated.error;
 process.stdout.write(generated.stdout);
 process.stderr.write(generated.stderr);
 assert.equal(generated.status, 0, "fixture generation failed");

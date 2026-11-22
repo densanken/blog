@@ -15,7 +15,13 @@ export const usePostBodyInteractions = () => {
 
   // URL の見出しが閉じた details の中にあれば、外側から順に開いてからスクロールする
   const revealHash = () => {
-    const id = decodeURIComponent(location.hash.slice(1));
+    let id: string;
+    try {
+      id = decodeURIComponent(location.hash.slice(1));
+    } catch {
+      // `#100%` のような不正なフラグメントでは、見出しを開かない（例外にして、記事の初期化を止めない）
+      return;
+    }
     const target = id ? document.getElementById(id) : null;
     if (!target?.closest(".prose")) return;
     const closed = [

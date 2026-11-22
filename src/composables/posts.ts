@@ -1,7 +1,7 @@
 // 記事一覧の1ページ分と総ページ数を返す（authorId があれば、その著者の記事だけを対象とする）
 // 範囲外のページは 404
 export const usePostPage = async (page: number, authorId?: string, pinned: string[] = []) => {
-  const { data } = await useAsyncData(`posts-${authorId ?? ""}-page-${String(page)}`, async () => {
+  const { data, error } = await useAsyncData(`posts-${authorId ?? ""}-page-${String(page)}`, async () => {
     const query = () => {
       const posts = queryCollection("posts");
       if (!authorId) return posts;
@@ -21,6 +21,11 @@ export const usePostPage = async (page: number, authorId?: string, pinned: strin
       total: await query().count(),
     };
   });
+
+  // 取得に失敗したときは、空の一覧にせず、エラーにする（data は既定値に戻り、1 ページ目が空になり、2 ページ目以降が 404 になる）
+  if (error.value) {
+    throw createError({ status: 500, statusText: "Failed to load posts", fatal: true, cause: error.value });
+  }
 
   const pageCount = Math.max(1, Math.ceil((data.value?.total ?? 0) / postsPerPage));
   if (page > pageCount) {
