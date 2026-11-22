@@ -14,9 +14,13 @@ ErrorDocument 404 /404.html
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 
     # 既定では、毎回更新を確認させる（HTML、ページのデータ、著者の JSON、検索の索引の入口、フィード、サイトマップなど）
-    # 画像、CSS、JavaScript、フォント、検索の索引は、1 日キャッシュする
+    # 画像、CSS、JavaScript、フォントは1日キャッシュする
     Header set Cache-Control "public, max-age=0, must-revalidate"
-    <FilesMatch "\.(css|js|png|webp|ico|woff2?|ttf|wasm|pagefind|pf_\w+)$">
+    <FilesMatch "\.(css|js|png|webp|ico|woff2?|ttf|wasm|pf_\w+)$">
         Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+    # Pagefindの固定ファイル名は常に再検証
+    <FilesMatch "^pagefind(?:-[^.]+)?\.(?:js|css|wasm)$">
+        Header set Cache-Control "public, max-age=0, must-revalidate"
     </FilesMatch>
 </IfModule>
