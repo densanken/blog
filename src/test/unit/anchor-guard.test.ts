@@ -38,6 +38,48 @@ describe("heading and footnote anchors", () => {
       warning.mockRestore();
     }
   );
+  it("gives a heading with an empty slug a non-empty ID, and keeps a link to the top", () => {
+    const tree: Root = {
+      type: "root",
+      children: [
+        h("h2", [h("svg", { className: ["lucide-inline"] })]),
+        h("h2", "😀"),
+        h("h2", "!!!"),
+        h("h2", "Section"),
+        h("p", [h("a", { href: "#" }, "top")]),
+      ],
+    };
+    anchorGuard()(tree, { path: "contents/a/post.md" } as never);
+    const ids = tree.children.slice(0, 4).map((node) => (node.type === "element" ? node.properties.id : undefined));
+    expect(ids.every((id) => typeof id === "string" && id !== "")).toBe(true);
+    expect(new Set(ids).size).toBe(4);
+    const link = tree.children[4];
+    expect(
+      link?.type === "element" && link.children[0]?.type === "element" ? link.children[0].properties.href : ""
+    ).toBe("#");
+  });
+  it("does not take an ID that is written in the article for the replacement of an empty slug", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const tree: Root = {
+      type: "root",
+      children: [
+        h("h2", "😀"),
+        h("h2", { id: "section" }, "Written"),
+        h("h2", { id: "section-1" }, "Written 2"),
+        h("p", [h("a", { href: "#section" }, "link")]),
+      ],
+    };
+    anchorGuard()(tree, { path: "contents/a/post.md" } as never);
+    const [emoji, written, writtenSecond, paragraph] = tree.children as ReturnType<typeof h>[];
+    expect(written?.properties.id).toBe("section");
+    expect(writtenSecond?.properties.id).toBe("section-1");
+    expect(emoji?.properties.id).toBeTruthy();
+    expect(["section", "section-1"]).not.toContain(emoji?.properties.id);
+    const link = paragraph?.children[0];
+    expect(link?.type === "element" ? link.properties.href : "").toBe("#section");
+    expect(warning).not.toHaveBeenCalled();
+    warning.mockRestore();
+  });
   it("separates confusable identifiers and updates their references", () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const first = h("h2", "paypal");

@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { afterParse, beforeParse } from "./plugins/content-hook.ts";
@@ -6,7 +6,7 @@ import { highlight } from "./plugins/highlight.ts";
 import { katexCss } from "./plugins/markdown-options.ts";
 import { cards, contents, ogLogoPath } from "./plugins/paths.ts";
 import { writePreviewHeaders } from "./plugins/preview.ts";
-import { preview } from "./plugins/site.ts";
+import { preview, siteUrl } from "./plugins/site.ts";
 import { prepareUnicodeTables } from "./plugins/unicode-tables.ts";
 import { defect } from "./plugins/warn.ts";
 
@@ -14,7 +14,6 @@ import { defect } from "./plugins/warn.ts";
 await prepareUnicodeTables();
 
 const plugin = (name: string) => fileURLToPath(new URL(`./plugins/${name}.ts`, import.meta.url));
-
 // 外部の画像と GIF の保存先（plugins/hosted-images.ts）
 mkdirSync(cards, { recursive: true });
 // 外部のプロフィールのアイコンは、ビルドの前に取得して iconCache に保存する（scripts/fetch-icons.ts）
@@ -43,7 +42,15 @@ export default defineNuxtConfig({
       },
     },
   },
-  modules: ["@nuxt/content", "@nuxt/eslint"],
+  modules: [
+    "@nuxt/content",
+    "@nuxt/eslint",
+    "@nuxt/fonts",
+    "@nuxtjs/color-mode",
+    "@nuxtjs/robots",
+    "@nuxtjs/sitemap",
+    "nuxt-og-image",
+  ],
   content: {
     experimental: { sqliteConnector: "native" },
     build: {
@@ -86,9 +93,44 @@ export default defineNuxtConfig({
       },
     },
   },
-  css: [katexCss, "rehype-callouts/theme/github"],
+  fonts: {
+    families: [{ name: "Noto Sans JP", weights: [400, 700], global: true }],
+  },
+  // OGP 画像は、多くのサービスが推奨する 1200x630（1.91:1）にする
+  ogImage: { defaults: { width: 1200, height: 630 } },
+  // サイトの説明は、ここだけで定義する（各ページの description、フィード、OGP が使う）
+  site: {
+    url: siteUrl,
+    // canonical、OGP、サイトマップの URL を、末尾のスラッシュつきにする
+    trailingSlash: true,
+    name: "CCSブログ",
+    description: "CCS（千葉大学電子計算機研究会）のメンバーなどが自由気ままに書くブログです。",
+  },
+  // OS の設定に従い、ヘッダーのボタンで切り替えた設定を localStorage に保存する
+  // `<html class="light|dark">` に反映し、Shiki と rehype-callouts のスタイルも切り替える
+  colorMode: {
+    preference: "system",
+    fallback: "light",
+    classSuffix: "",
+  },
+  sitemap: {
+    sources: ["/api/sitemap-urls"],
+    discoverImages: false,
+    xsl: false,
+  },
+  css: [katexCss, "rehype-callouts/theme/github", "~/assets/css/main.css"],
   eslint: {
     config: { typescript: { strict: true, tsconfigPath: "./tsconfig.json" } },
+  },
+  // CSS（Noto Sans JP の @font-face を含む）を、各ページの HTML に埋め込まず、キャッシュできる外部ファイルとして配信する
+  features: { inlineStyles: false },
+  // ページ遷移に View Transitions を使う（スタイルは main.css の view-transition-name と ::view-transition-*）
+  experimental: {
+    viewTransition: true,
+    componentIslands: true,
+    defaults: {
+      nuxtLink: { prefetchOn: { interaction: true, visibility: false } },
+    },
   },
   devtools: { enabled: true },
   compatibilityDate: "2026-11-01",
@@ -111,12 +153,18 @@ export default defineNuxtConfig({
       },
     },
   },
+  // プレビュー用のビルドは、検索エンジンに載せない
+  // robots.txt はすべて拒否し、ページは noindex にして、HTTP ヘッダーの noindex は nitro のフックで追加する
+  ...(preview && { robots: { disallow: ["/"] }, routeRules: { "/**": { robots: false } } }),
   nitro: {
+    // プレビュー用のビルドだけ、全ページの先頭にバナーを出す（本番のビルドにはバナーのコードを含めない）
+    plugins: preview ? [fileURLToPath(new URL("./src/server/preview/banner.ts", import.meta.url))] : [],
     // 外部の画像（リンクカードのサムネイルなど）と GIF は、ビルド時に変換して .data/cards/ に保存し（plugins/hosted-images.ts）、/_cards/ で配信する
     // contents/ の assets は、そのままでは公開しない（変換した画像だけを配信する）
     publicAssets: [{ dir: cards, baseURL: "/_cards" }],
     prerender: {
       failOnError: false,
+      routes: ["/feed.xml", "/api/intro-post.json"],
       ignore: ["/contents/"],
     },
     hooks: {
@@ -124,6 +172,8 @@ export default defineNuxtConfig({
       compiled: (nitro) => {
         if (nitro.options.preset === "nitro-prerender") return;
         const { publicDir } = nitro.options.output;
+        // nuxt-og-image が実行時の画像生成のために出力するフォントは、OGP 画像をビルド時に生成するため、配信しない
+        rmSync(`${publicDir}/_og-static-fonts`, { recursive: true, force: true });
         if (preview) writePreviewHeaders(publicDir);
       },
       "prerender:route": (route) => {
@@ -141,6 +191,14 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: "ja" },
       title: "CCSブログ",
       titleTemplate: "%s | CCSブログ",
+      link: [
+        {
+          rel: "alternate",
+          type: "application/atom+xml",
+          title: "CCSブログ",
+          href: "/feed.xml",
+        },
+      ],
     },
   },
 });

@@ -1,0 +1,8 @@
+name: Fixture Author
+pinned:
+  - hello
+  - post01
+  - missing
+  - other/post11
+  - HELLO
+  - post02

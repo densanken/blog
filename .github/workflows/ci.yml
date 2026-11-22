@@ -21,6 +21,9 @@ jobs:
             script: test
           - name: format
             script: fmt:check
+          - name: e2e
+            script: test:e2e
+            browser: true
           - name: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -38,6 +41,14 @@ jobs:
       - name: Set up
         if: matrix.check.name != 'build'
         uses: ./.github/actions/setup
+
+      - name: Allow Chromium sandbox user namespaces
+        if: matrix.check.browser
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Install Chromium for Mermaid and e2e
+        if: matrix.check.browser
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run ${{ matrix.check.name }} check
         if: matrix.check.name != 'build'

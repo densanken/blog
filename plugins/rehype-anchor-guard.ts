@@ -1,4 +1,4 @@
-import Slugger from "github-slugger";
+import Slugger, { slug } from "github-slugger";
 import { toString } from "hast-util-to-string";
 import { visit } from "unist-util-visit";
 
@@ -53,11 +53,24 @@ export default () => (tree: Root, file: VFile) => {
   const slugger = new Slugger();
   const { footnoteAnchors, footnoteLinks } = findFootnoteElements(tree, file);
   const anchors: { node: Element; key: "id" | "name"; original: string; id: string }[] = [];
+  // 代わりの名前は、記事に書かれた ID と衝突しないものを選ぶ（先に取ると、書かれた ID の見出しが改名され、そこへのリンクが切れる）
+  const written = new Set<string>();
+  visit(tree, "element", ({ properties }) => {
+    if (typeof properties.id === "string" && properties.id) written.add(properties.id);
+  });
+  const fallback = () => {
+    let candidate = slugger.slug("section");
+    while (written.has(candidate)) candidate = slugger.slug("section");
+    return candidate;
+  };
   visit(tree, "element", (node) => {
     const heading = /^h[1-6]$/.test(node.tagName);
     const existing = node.properties.id;
     if (heading || typeof existing === "string") {
-      const original = typeof existing === "string" && existing ? existing : slugger.slug(toString(node));
+      const text = toString(node);
+      // 絵文字や記号だけの見出しは、スラッグが空になり、id が空になる（目次のリンクも、先頭へ戻るリンクになる）ため、代わりの名前をつける
+      const original =
+        typeof existing === "string" && existing ? existing : slug(text) === "" ? fallback() : slugger.slug(text);
       const id = heading ? original.replace(/-+/g, "-").replace(/^-|-$/g, "").replace(/^(\d)/, "_$1") : original;
       anchors.push({ node, key: "id", original, id });
     }
