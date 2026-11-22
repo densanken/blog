@@ -57,3 +57,52 @@ jobs:
       - name: Build
         if: matrix.check.name == 'build'
         uses: ./.github/actions/build
+
+  # 記事のサブモジュール（contents）の参照が古いものに戻っていないかを確かめる
+  submodule:
+    name: submodule
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the contents reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # サブモジュールの参照（コミットの SHA）は、Contents API の sha で得られる
+          reference() {
+            gh api "repos/$REPOSITORY/contents/contents?ref=$1" --jq 'select(.type == "submodule") | .sha'
+          }
+          base=$(reference "$BASE_SHA")
+          head=$(reference "$HEAD_SHA")
+          if [ -z "$head" ]; then
+            echo "::error::contents がサブモジュールではありません。"
+            exit 1
+          fi
+          if [ "$base" = "$head" ]; then
+            echo "contents の参照は変わっていません（$head）。"
+            exit 0
+          fi
+
+          status() {
+            gh api "repos/densanken/blog-contents/compare/$1...$2" --jq .status
+          }
+          # 新しい参照が、blog-contents の main に含まれる（マージ済みの）コミットか
+          # compare の main...head が behind か identical なら、head は main の祖先
+          merged=$(status main "$head")
+          if [ "$merged" != "behind" ] && [ "$merged" != "identical" ]; then
+            echo "::error::contents の参照（$head）は、blog-contents の main に含まれていません。マージ済みのコミットを指してください。"
+            exit 1
+          fi
+          # 新しい参照が、ベースの参照より新しいか（退行していないか）
+          if [ -n "$base" ]; then
+            moved=$(status "$base" "$head")
+            if [ "$moved" != "ahead" ]; then
+              echo "::error::contents の参照が古くなっています（$base → $head、状態: $moved）。'git submodule update --remote contents' などで最新にして、コミットし直してください。"
+              exit 1
+            fi
+          fi
+          echo "contents の参照を更新しています（$base → $head）。"
