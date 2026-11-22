@@ -1,6 +1,19 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
-import { chunkEmbeds, embedSize, findNew, notify, parseFeed, send, toEmbed } from "../../../scripts/notify-discord.ts";
+import {
+  attachLocal,
+  chunkEmbeds,
+  embedSize,
+  findNew,
+  notify,
+  parseFeed,
+  send,
+  toEmbed,
+} from "../../../scripts/notify-discord.ts";
 
 const entry = (slug: string, extra = "") => `
   <entry>
@@ -121,5 +134,34 @@ describe("notify discord", () => {
   it("returns a failure without throwing when every destination fails", async () => {
     const env = { DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1/x" };
     expect(await notify(feed("a"), feed("b", "a"), env, ng)).toMatch(/^failed/);
+  });
+  it("attaches images found in the output and keeps the URL of the others", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notify-"));
+    try {
+      writeFileSync(join(dir, "me.webp"), "icon");
+      mkdirSync(join(dir, "_og"));
+      const base = toEmbed(parseFeed(feed("a")).entries[0]!, "サイト");
+      const embed = { ...base, image: { url: "https://other.example/x.png" } };
+      const { embeds, files } = attachLocal(
+        [embed, { ...embed, image: { url: "https://example.com/../etc/passwd" } }],
+        dir
+      );
+      expect(embeds[0]!.author?.icon_url).toBe("attachment://0.webp");
+      expect(embeds[0]!.image?.url).toBe("https://other.example/x.png");
+      expect(embeds[1]!.image?.url).toBe("https://example.com/../etc/passwd");
+      expect(files.map(({ name }) => name)).toEqual(["0.webp", "1.webp"]);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("sends multipart when files are attached", async () => {
+    const fetcher = vi.fn(ok);
+    const files = [{ name: "0.webp", data: Buffer.from("icon") }];
+    expect(await send([], { DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1/x" }, fetcher, files)).toBe(true);
+    const [, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("files[0]")).toBeInstanceOf(Blob);
+    expect((init.headers as Record<string, string>)["content-type"]).toBeUndefined();
   });
 });

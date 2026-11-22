@@ -1,7 +1,8 @@
 // 新しく公開された記事を、Discord に通知する（deploy ワークフローが、deploy ブランチの更新後に呼ぶ）
 // 使い方: node scripts/notify-discord.ts <前回の feed.xml> <今回の feed.xml>
 // シークレットを持つジョブで動かすため、依存のインストールを要さないよう、Node 組み込みの機能だけで書く
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
+import { basename, dirname, extname, join, resolve, sep } from "node:path";
 
 import { stripTags } from "../plugins/strip-tags.ts";
 
@@ -130,6 +131,51 @@ export const toEmbed = (entry: Entry, siteName: string): Embed => {
   };
 };
 
+export interface Attachment {
+  name: string;
+  data: Buffer;
+}
+
+// 公開前に通知すると、Discord が画像を取得できないため、サイト内の画像はビルド済みの出力から読んで添付する
+const maxAttachmentBytes = 8 * 1024 * 1024;
+const readOutput = (dir: string, origin: string, value: string) => {
+  try {
+    const url = new URL(value);
+    if (url.origin !== origin) return undefined;
+    const root = resolve(dir);
+    const path = resolve(join(root, decodeURIComponent(url.pathname)));
+    if (!path.startsWith(root + sep) || statSync(path).size > maxAttachmentBytes) return undefined;
+    return readFileSync(path);
+  } catch {
+    return undefined;
+  }
+};
+// 読めた画像は attachment:// に置き換えて files に集める、読めなければ URL のままにする
+export const attachLocal = (embeds: Embed[], dir: string): { embeds: Embed[]; files: Attachment[] } => {
+  const files: Attachment[] = [];
+  const localize = (value: string, origin: string) => {
+    const data = readOutput(dir, origin, value);
+    if (!data) return value;
+    const name = `${String(files.length)}${extname(basename(new URL(value).pathname))}`;
+    files.push({ name, data });
+    return `attachment://${name}`;
+  };
+  const result = embeds.map((embed): Embed => {
+    let origin: string;
+    try {
+      origin = new URL(embed.url).origin;
+    } catch {
+      return embed;
+    }
+    return {
+      ...embed,
+      ...(embed.author?.icon_url && { author: { ...embed.author, icon_url: localize(embed.author.icon_url, origin) } }),
+      ...(embed.image && { image: { url: localize(embed.image.url, origin) } }),
+    };
+  });
+  return { embeds: result, files };
+};
+
 // Discord は 1 メッセージの embed 全体で、title・description・author.name・footer.text の合計を 6000 文字以下に制限する
 export const maxEmbedTotal = 6000;
 export const embedSize = (embed: Embed) =>
@@ -158,19 +204,32 @@ export const chunkEmbeds = (embeds: Embed[]) => {
 
 export type Env = Record<string, string | undefined>;
 
-const post = async (url: string, headers: Record<string, string>, embeds: Embed[], fetcher: typeof fetch) => {
+const post = async (
+  url: string,
+  headers: Record<string, string>,
+  embeds: Embed[],
+  files: Attachment[],
+  fetcher: typeof fetch
+) => {
+  // 記事のタイトルなどにメンションが含まれても、誰にも通知しない
+  const payload = JSON.stringify({ embeds, allowed_mentions: { parse: [] } });
+  const form = new FormData();
+  form.set("payload_json", payload);
+  for (const [index, file] of files.entries())
+    form.set(`files[${String(index)}]`, new Blob([new Uint8Array(file.data)]), file.name);
   const response = await fetcher(url, {
     method: "POST",
-    headers: { "content-type": "application/json", ...headers },
-    // 記事のタイトルなどにメンションが含まれても、誰にも通知しない
-    body: JSON.stringify({ embeds, allowed_mentions: { parse: [] } }),
+    // 添付があるときは multipart（境界つきの content-type は fetch が付ける）
+    ...(files.length > 0
+      ? { headers, body: form }
+      : { headers: { "content-type": "application/json", ...headers }, body: payload }),
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
 };
 
 // Bot で送り、失敗したとき（未設定を含む）だけ Webhook で送る、どちらも使えなければ false
-export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fetch) => {
+export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fetch, files: Attachment[] = []) => {
   const { DISCORD_BOT_TOKEN: token, DISCORD_CHANNEL_ID: channel, DISCORD_WEBHOOK_URL: webhook } = env;
   if (token && channel && /^\d+$/.test(channel)) {
     try {
@@ -178,6 +237,7 @@ export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fe
         `https://discord.com/api/v10/channels/${channel}/messages`,
         { authorization: `Bot ${token}` },
         embeds,
+        files,
         fetcher
       );
       return true;
@@ -187,7 +247,7 @@ export const send = async (embeds: Embed[], env: Env, fetcher: typeof fetch = fe
   }
   if (webhook) {
     try {
-      await post(webhook, {}, embeds, fetcher);
+      await post(webhook, {}, embeds, files, fetcher);
       return true;
     } catch (error) {
       console.warn(`::warning::Discord の Webhook での送信に失敗しました（${(error as Error).message}）。`);
@@ -201,7 +261,8 @@ export const notify = async (
   previousXml: string | undefined,
   currentXml: string,
   env: Env,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  outputDir?: string
 ) => {
   if (previousXml === undefined || previousXml.trim() === "") return "skipped: no previous feed";
   const current = parseFeed(currentXml);
@@ -219,7 +280,9 @@ export const notify = async (
   const embeds = added.reverse().map((entry) => toEmbed(entry, current.title));
   let sent = 0;
   for (const part of chunkEmbeds(embeds)) {
-    if (!(await send(part, env, fetcher))) return `failed: sent ${String(sent)} of ${String(embeds.length)}`;
+    const { embeds: localized, files } = outputDir ? attachLocal(part, outputDir) : { embeds: part, files: [] };
+    if (!(await send(localized, env, fetcher, files)))
+      return `failed: sent ${String(sent)} of ${String(embeds.length)}`;
     sent += part.length;
   }
   return `sent ${String(sent)}`;
@@ -237,7 +300,9 @@ if (import.meta.main) {
     };
     const currentXml = read(current);
     console.log(
-      currentXml === undefined ? "skipped: no current feed" : await notify(read(previous), currentXml, process.env)
+      currentXml === undefined
+        ? "skipped: no current feed"
+        : await notify(read(previous), currentXml, process.env, fetch, dirname(current!))
     );
   } catch (error) {
     console.warn(`::warning::Discord への通知に失敗しました（${(error as Error).message}）。`);
