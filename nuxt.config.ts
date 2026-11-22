@@ -192,6 +192,7 @@ export default defineNuxtConfig({
       title: "CCSブログ",
       titleTemplate: "%s | CCSブログ",
       link: [
+        { rel: "icon", href: "/favicon.ico", sizes: "any" },
         {
           rel: "alternate",
           type: "application/atom+xml",
