@@ -164,10 +164,9 @@ jobs:
       - name: Set up Node.js
         if: steps.head.outputs.deploy == 'true'
         continue-on-error: true
-        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: notify/.nvmrc
-          install: false
 
       - name: Notify Discord
         if: steps.head.outputs.deploy == 'true'
