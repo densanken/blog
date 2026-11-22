@@ -58,6 +58,28 @@ describe("heading and footnote anchors", () => {
       link?.type === "element" && link.children[0]?.type === "element" ? link.children[0].properties.href : ""
     ).toBe("#");
   });
+  it("does not take an ID that is written in the article for the replacement of an empty slug", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const tree: Root = {
+      type: "root",
+      children: [
+        h("h2", "😀"),
+        h("h2", { id: "section" }, "Written"),
+        h("h2", { id: "section-1" }, "Written 2"),
+        h("p", [h("a", { href: "#section" }, "link")]),
+      ],
+    };
+    anchorGuard()(tree, { path: "contents/a/post.md" } as never);
+    const [emoji, written, writtenSecond, paragraph] = tree.children as ReturnType<typeof h>[];
+    expect(written?.properties.id).toBe("section");
+    expect(writtenSecond?.properties.id).toBe("section-1");
+    expect(emoji?.properties.id).toBeTruthy();
+    expect(["section", "section-1"]).not.toContain(emoji?.properties.id);
+    const link = paragraph?.children[0];
+    expect(link?.type === "element" ? link.properties.href : "").toBe("#section");
+    expect(warning).not.toHaveBeenCalled();
+    warning.mockRestore();
+  });
   it("separates confusable identifiers and updates their references", () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const first = h("h2", "paypal");
