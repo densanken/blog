@@ -16,6 +16,13 @@ describe("Markdown preview", () => {
     ] as const)
       expect(await renderMarkdownPreview(source), source).not.toMatch(forbidden);
   });
+  it("renders standard commands that use \\char internally", async () => {
+    for (const source of ["$a \\neq b$", "$a \\ne b$", "$x \\notin A$", "$\\not= b$"]) {
+      const output = await renderMarkdownPreview(source);
+      expect(output, source).toContain('class="katex"');
+      expect(output, source).not.toContain("katex-error");
+    }
+  });
   it("does not carry KaTeX macro definitions over to later previews", async () => {
     await renderMarkdownPreview("$\\gdef\\frac#1#2{#1+#2}$");
     expect(await renderMarkdownPreview("$\\frac{a}{b}$")).toContain("mfrac");

@@ -1,4 +1,5 @@
 import { fromHtml } from "hast-util-from-html";
+import { toString } from "hast-util-to-string";
 
 import type { Element, Root } from "hast";
 
@@ -166,16 +167,30 @@ const badChar = (cp: number) =>
   (cp >= 0x7f && cp <= 0x9f);
 const hasBad = (value: string, katex = false) => {
   // 英国旗などの絵文字タグ列は、正当
-  const stripped = value.replace(/\u{1f3f4}[\u{e0020}-\u{e007e}]+\u{e007f}/gu, "");
-  return Array.from(stripped).some((ch) => (katex && ch === "\u200b" ? false : badChar(ch.codePointAt(0)!)));
+  let stripped = value.replace(/\u{1f3f4}[\u{e0020}-\u{e007e}]+\u{e007f}/gu, "");
+  // KaTeX は \v などのアクセントで、旗の絵文字とタグ列の間に文字を挟むことがある（許可した旗のタグ列そのものは許す）
+  if (katex)
+    stripped = stripped.replace(
+      /\u{e0067}\u{e0062}(?:\u{e0065}\u{e006e}\u{e0067}|\u{e0073}\u{e0063}\u{e0074}|\u{e0077}\u{e006c}\u{e0073})\u{e007f}/gu,
+      ""
+    );
+  // KaTeX が自分で出力する文字（vlist のゼロ幅スペースと、MathML の関数適用などの見えない演算子）は許す
+  return Array.from(stripped).some((ch) =>
+    katex && /[\u200b\u2061-\u2064]/.test(ch) ? false : badChar(ch.codePointAt(0)!)
+  );
 };
 export const invisibleViolations = (tree: Root | Element) => {
   const out: string[] = [];
   const walk = (node: Root | Element, katex = false) => {
     for (const child of node.children) {
-      if (child.type === "text" && hasBad(child.value, katex))
+      if (child.type === "text" && !katex && hasBad(child.value))
         out.push(`text ${JSON.stringify(child.value.slice(0, 40))}`);
       if (child.type === "element") {
+        const katexRoot =
+          !katex && Array.isArray(child.properties.className) && child.properties.className.some((c) => c === "katex");
+        // KaTeX は絵文字とそれに続くタグ文字を別の要素に分けるので、数式全体のテキストをつないで検査する
+        if (katexRoot && hasBad(toString(child), true))
+          out.push(`katex text ${JSON.stringify(toString(child).slice(0, 40))}`);
         for (const [k, v] of Object.entries(child.properties)) {
           const values = Array.isArray(v) ? v.map(String) : [String(v)];
           for (const val of values) {
@@ -190,10 +205,7 @@ export const invisibleViolations = (tree: Root | Element) => {
               out.push(`attr ${k} on <${child.tagName}> ${JSON.stringify(val.slice(0, 40))}`);
           }
         }
-        walk(
-          child,
-          katex || (Array.isArray(child.properties.className) && child.properties.className.some((c) => c === "katex"))
-        );
+        walk(child, katex || katexRoot);
       }
     }
   };

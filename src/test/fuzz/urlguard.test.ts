@@ -8,9 +8,10 @@ import { inspectTextUrls, inspectUrl, knownDomains } from "../../../plugins/url-
 import { testDomains } from "../setup-domains.ts";
 import { assertProperty, runs, uni } from "./gen.ts";
 
+// 末尾のドットは数によらず同じホストとして比べる（ラベルの装飾で 。 が足され、evil.test.. になることがある）
 const norm = (host: string) =>
   domainToASCII(host.replace(/[。．｡]/g, "."))
-    .replace(/\.$/, "")
+    .replace(/\.+$/, "")
     .toLowerCase();
 
 // 実データ（confusables.txt）に含まれる、見た目が似た文字（拉丁文字 → 置き換え）

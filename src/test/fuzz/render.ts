@@ -2,7 +2,6 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import { vi } from "vitest";
 
@@ -13,6 +12,8 @@ import embedCode from "../../../plugins/rehype-embed-code.ts";
 import embed from "../../../plugins/rehype-embed.ts";
 import externalLinks from "../../../plugins/rehype-external-links.ts";
 import internalLinks from "../../../plugins/rehype-internal-links.ts";
+// 本番（nuxt.config.ts）と同じく、\char の拒否とファイルごとの macros を持つラッパーを使う
+import katex from "../../../plugins/rehype-katex.ts";
 import lucide from "../../../plugins/rehype-lucide.ts";
 import markdownPreview from "../../../plugins/rehype-markdown-preview.ts";
 import mdcCompat from "../../../plugins/rehype-mdc-compat.ts";
@@ -67,7 +68,7 @@ export const render = async (markdown: string) => {
           preview: { instance: markdownPreview },
           mdcCompat: { instance: mdcCompat, options: { contents } },
           callouts: { instance: callouts },
-          katex: { instance: rehypeKatex },
+          katex: { instance: katex },
           plantuml: { instance: plantuml, options: { contents, cacheDir: cache } },
           svg: { instance: svgAttributes },
           toolbar: { instance: toolbar },

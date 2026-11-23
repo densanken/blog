@@ -9,6 +9,8 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ["src/test/fuzz/**/*.test.ts"],
+      // FUZZ_SCALE を上げると 1 つのテストに数分かかる
+      testTimeout: 1_800_000,
       env: { UNICODE_DATA_DIR: "" },
       globalSetup: ["src/test/fuzz/setup.ts"],
     },

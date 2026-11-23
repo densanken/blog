@@ -30,9 +30,14 @@ describe("invisible characters", () => {
   });
   it("removes a joiner whose neighbour is removed, in one pass", () => {
     // U+061C は取り除かれるので、その前の ZWJ・ZWNJ も残らない（fuzzing で見つかった、2 回目で結果が変わる入力）
-    for (const input of ["\uFB50\u200D\u061C", "\u0627\u200C\u061C"]) {
+    for (const input of [
+      "\uFB50\u200D\u061C",
+      "\u0627\u200C\u061C",
+      "https://a.b/\uFEFF%E2%80%8B",
+      "http://x\uFEFF%EF%BB%BF",
+    ]) {
       const once = cleanTextUnicode(input).value;
-      expect(once, input).not.toMatch(/[\u200c\u200d]/);
+      expect(once, input).not.toMatch(/[\u200c\u200d]|%E2%80%8B|%EF%BB%BF/i);
       expect(cleanTextUnicode(once).value).toBe(once);
     }
   });

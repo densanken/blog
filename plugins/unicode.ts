@@ -89,7 +89,7 @@ export const cleanUnicode = (input: string, code = false) => {
   return { value, changed: true };
 };
 
-export const cleanUrlUnicode = (input: string) => {
+const cleanUrlOnce = (input: string) => {
   const units: { value: string; raw: string }[] = [];
   for (let i = 0; i < input.length;) {
     const first = input[i] === "%" ? /^%([\da-f]{2})/i.exec(input.slice(i, i + 3)) : null;
@@ -130,7 +130,16 @@ export const cleanUrlUnicode = (input: string) => {
   };
 };
 
-export const cleanTextUnicode = (value: string) => {
+export const cleanUrlUnicode = (input: string) => {
+  // 取り除いた文字で、前後の文字の判定や、パーセントエンコードの組み合わせが変わるため、変化がなくなるまで繰り返す
+  let result = cleanUrlOnce(input);
+  if (!result.changed) return result;
+  for (let next = cleanUrlOnce(result.value); next.changed; next = cleanUrlOnce(result.value))
+    result = { value: next.value, changed: true };
+  return result;
+};
+
+const cleanTextOnce = (value: string) => {
   const entities = value.replace(
     /&#(?:x([\da-f]+)|(\d+));/gi,
     (entity, hex: string | undefined, decimal: string | undefined) => {
@@ -154,6 +163,16 @@ export const cleanTextUnicode = (value: string) => {
   }
   const tail = cleanUnicode(entities.slice(offset));
   return { value: result + tail.value, changed: changed || tail.changed };
+};
+
+export const cleanTextUnicode = (value: string) => {
+  // 取り除いた文字（URL の区切りになる U+FEFF など）で URL の範囲が変わり、判定が変わることがあるため、変化がなくなるまで繰り返す
+  // 変化があれば文字列が短くなるので、必ず終わる
+  let result = cleanTextOnce(value);
+  if (!result.changed) return result;
+  for (let next = cleanTextOnce(result.value); next.changed; next = cleanTextOnce(result.value))
+    result = { value: next.value, changed: true };
+  return result;
 };
 
 export const cleanYamlSource = (source: string) => {
