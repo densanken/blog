@@ -41,6 +41,14 @@ describe("invisible characters", () => {
       expect(cleanTextUnicode(once).value).toBe(once);
     }
   });
+  it("removes chained character references in linear time", () => {
+    // 1 つ取り除くたびに次の文字参照がつながる入力（全文の再走査を繰り返すと Θ(n²) になる）
+    const n = 50_000;
+    const started = performance.now();
+    expect(cleanTextUnicode("&".repeat(n) + "#x202e;".repeat(n))).toEqual({ value: "", changed: true });
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(cleanTextUnicode("a&&#x202e;#8238;b&#x41;").value).toBe("ab&#x41;");
+  });
   it("cleans percent-encoded invisible characters without decoding reserved bytes", () => {
     expect(cleanUrlUnicode("https://example.com/%FF%E2%80%8B%2F")).toEqual({
       value: "https://example.com/%FF%2F",

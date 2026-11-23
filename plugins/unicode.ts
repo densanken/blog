@@ -139,18 +139,30 @@ export const cleanUrlUnicode = (input: string) => {
   return result;
 };
 
+// 文字参照を取り除くと、前の「&」と後ろの「#x202e;」がつながって新しい文字参照になることがある
+// 出力の末尾で文字参照が完成するたびに判定するので、連鎖しても 1 回の走査で取り除ける
+const removeEntities = (value: string) => {
+  const output: string[] = [];
+  for (const ch of value) {
+    output.push(ch);
+    if (ch !== ";") continue;
+    let start = output.length - 2;
+    while (start >= 0 && /[\da-f]/i.test(output[start]!)) start--;
+    const hex = output[start] === "x" || output[start] === "X";
+    const digits = output.slice(start + 1, -1).join("");
+    if (hex) start--;
+    if (!digits || output[start] !== "#" || output[start - 1] !== "&") continue;
+    if (!hex && !/^\d+$/.test(digits)) continue;
+    const cp = Number.parseInt(digits, hex ? 16 : 10);
+    if (!Number.isFinite(cp) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) continue;
+    if (cp === 0x200c || cp === 0x200d || (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0000 && cp <= 0xe01ef)) continue;
+    if (cleanUnicode(String.fromCodePoint(cp)).changed) output.length = start - 1;
+  }
+  return output.join("");
+};
+
 const cleanTextOnce = (value: string) => {
-  const entities = value.replace(
-    /&#(?:x([\da-f]+)|(\d+));/gi,
-    (entity, hex: string | undefined, decimal: string | undefined) => {
-      const cp = Number.parseInt(hex ?? decimal ?? "", hex ? 16 : 10);
-      if (!Number.isFinite(cp) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return entity;
-      if (cp === 0x200c || cp === 0x200d || (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0000 && cp <= 0xe01ef))
-        return entity;
-      const character = String.fromCodePoint(cp);
-      return cleanUnicode(character).changed ? "" : entity;
-    }
-  );
+  const entities = removeEntities(value);
   let result = "";
   let offset = 0;
   let changed = entities !== value;

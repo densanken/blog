@@ -13,6 +13,8 @@ describe("Markdown preview", () => {
       ['$\\char"202E$', /\u202e|&#x202e;|&#8238;/i],
       ["$\\@char{8238}$", /\u202e|&#x202e;|&#8238;/i],
       ['$\\char"2060$', /\u2060|&#x2060;|&#8288;/i],
+      // 標準の命令（\not）の展開を \def で組み替え、内部の \char に別の引数を渡す
+      ['$\\def\\html@mathml#1#2{\\take#2}\\def\\take#1#2#3#4#5{#1"202E}\\not$', /\u202e|&#x202e;|&#8238;/i],
     ] as const)
       expect(await renderMarkdownPreview(source), source).not.toMatch(forbidden);
   });
