@@ -23,13 +23,15 @@ describe("renderMarkdownPreview fuzz", () => {
         const html = await renderMarkdownPreview(src);
         const v = htmlViolations(html);
         expect(v).toEqual([]);
-        if (!src.includes("\\char"))
+        // 対になっていないサロゲートは、UTF-8 の Markdown からは来ないので除外する
+        if (src.isWellFormed())
           invisibles.push(...invisibleViolations(fromHtml(html, { fragment: true })).map((m) => [src, m] as const));
       }),
       { numRuns: runs(20000) }
     );
     invisibles.sort((a, b) => a[0].length - b[0].length);
     console.log("INVISIBLE_LEAKS", invisibles.length, JSON.stringify(invisibles.slice(0, 5)));
+    expect(invisibles.slice(0, 5)).toEqual([]);
   }, 1_800_000);
 
   it("frontmatter regex does not backtrack catastrophically", async () => {

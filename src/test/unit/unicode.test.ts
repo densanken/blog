@@ -28,6 +28,14 @@ describe("invisible characters", () => {
     expect(cleanUnicode("漢\u{E0100}\u{E0101}").value).toBe("漢\u{E0100}");
     expect(cleanUnicode("👩‍💻", true).value).toContain("U+200D");
   });
+  it("removes a joiner whose neighbour is removed, in one pass", () => {
+    // U+061C は取り除かれるので、その前の ZWJ・ZWNJ も残らない（fuzzing で見つかった、2 回目で結果が変わる入力）
+    for (const input of ["\uFB50\u200D\u061C", "\u0627\u200C\u061C"]) {
+      const once = cleanTextUnicode(input).value;
+      expect(once, input).not.toMatch(/[\u200c\u200d]/);
+      expect(cleanTextUnicode(once).value).toBe(once);
+    }
+  });
   it("cleans percent-encoded invisible characters without decoding reserved bytes", () => {
     expect(cleanUrlUnicode("https://example.com/%FF%E2%80%8B%2F")).toEqual({
       value: "https://example.com/%FF%2F",

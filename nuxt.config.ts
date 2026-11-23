@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterParse, beforeParse } from "./plugins/content-hook.ts";
 import { highlight } from "./plugins/highlight.ts";
-import { katexCss, katexOptions } from "./plugins/markdown-options.ts";
+import { katexCss } from "./plugins/markdown-options.ts";
 import { cards, contents, ogLogoPath } from "./plugins/paths.ts";
 import { writePreviewHeaders } from "./plugins/preview.ts";
 import { preview, siteUrl } from "./plugins/site.ts";
@@ -84,7 +84,7 @@ export default defineNuxtConfig({
           [plugin("rehype-markdown-preview")]: {},
           [plugin("rehype-mdc-compat")]: { options: { contents } },
           [plugin("rehype-callouts")]: {},
-          "rehype-katex": { options: katexOptions },
+          [plugin("rehype-katex")]: {},
           [plugin("rehype-mermaid")]: { options: { contents } },
           [plugin("rehype-plantuml")]: { options: { contents } },
           [plugin("rehype-svg-attributes")]: {},

@@ -6,7 +6,7 @@ import fc from "fast-check";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import { visit } from "unist-util-visit";
-import { describe, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import anchorGuard from "../../../plugins/rehype-anchor-guard.ts";
 import callouts from "../../../plugins/rehype-callouts.ts";
@@ -154,6 +154,14 @@ const check = (tree: Root, src = "") => {
   return v;
 };
 
+// 非オブジェクトの frontmatter（remark-post-meta.ts）と、remark-mdc・micromark の内部の例外
+const knownCrashes = [
+  "Cannot create property 'readingTime'",
+  "expected last token to be open",
+  "could not find previous flow chunk",
+];
+let checked = 0;
+
 describe("article pipeline fuzz", () => {
   it("full chain output is safe", async () => {
     const n = await assertProperty(
@@ -162,19 +170,23 @@ describe("article pipeline fuzz", () => {
         try {
           tree = await render(src);
         } catch (error) {
-          // 既知の不具合（非オブジェクトの frontmatter で readingTime を代入できない）は数えて除外する
+          // 既知の解析の例外（記事ごと除外され、ビルドは続く）だけを数えて除外し、それ以外は失敗にする
+          if (!knownCrashes.some((message) => String(error).includes(message))) throw error;
           const key = String(error).slice(0, 90);
           const entry = crashes.get(key);
           if (!entry || src.length < entry.length) crashes.set(key, src);
           knownCrash++;
           return;
         }
+        checked++;
         const v = check(tree, src);
         if (v.length) throw new Error(JSON.stringify(v));
       }),
       runs(10000)
     );
     console.log("RUNS", n, "crashes", knownCrash, JSON.stringify([...crashes]));
+    // 既知の例外ばかりで、検査まで進めた入力がほとんどない状態を合格にしない
+    expect(checked).toBeGreaterThan(n / 2);
     console.log("TAGS", JSON.stringify([...seenTags]));
     console.log("IFRAMES", JSON.stringify([...seenIframes]));
   }, 1_800_000);

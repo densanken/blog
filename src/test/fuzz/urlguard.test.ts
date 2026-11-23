@@ -296,12 +296,18 @@ describe("url-guard fuzz", () => {
       fc.property(decor, shown, closer, (d, s, c) => {
         const label = d + s + c;
         const r = inspectUrl("https://evil.test/", label);
+        // 装飾のないラベル（先頭が URL かホスト名）は対応している形なので、見逃しは失敗にする
+        expect(inspectUrl("https://evil.test/", s)?.mismatch, s).toBe(true);
+        // 前後を装飾したラベルは未対応（表示文字列の最初の単語だけを見る既知の制約）なので、記録だけする
         if (r && !r.mismatch && !r.confusable) found.push(label);
-        // 全件の報告は後で行う
       }),
       3000
     );
-    console.log("DECORATED_LABEL_FALSE_NEGATIVES", JSON.stringify([...new Set(found)].slice(0, 80)), found.length);
+    console.log(
+      "DECORATED_LABEL_FALSE_NEGATIVES (unsupported, known limitation)",
+      JSON.stringify([...new Set(found)].slice(0, 80)),
+      found.length
+    );
   });
 
   it("inspectTextUrls finds every delimited URL host (exhaustive)", () => {
@@ -399,6 +405,8 @@ describe("url-guard fuzz", () => {
       "」。",
       ").",
     ];
+    // ホスト名の文字として続く接尾辞（example.comtext になる）は、元のホストを期待しない
+    const extending = new Set(["text"]);
     const hostsList = ["example.com", "goog1e.test", "gооgle.test", "paypal.test"];
     const missing = new Map<string, string[]>();
     const notConfusable = new Map<string, string[]>();
@@ -406,6 +414,7 @@ describe("url-guard fuzz", () => {
       for (const b of before)
         for (const a of after)
           for (const scheme of ["https://", "HTTP://"]) {
+            if (extending.has(a)) continue;
             const text = `${b}${scheme}${h}${a}`;
             const found = inspectTextUrls(text);
             const want = norm(h);
@@ -417,8 +426,7 @@ describe("url-guard fuzz", () => {
           }
     console.log("TEXTURL_MISSING_HOST (after-suffix => examples)", JSON.stringify([...missing]));
     console.log("TEXTURL_NOT_CONFUSABLE", JSON.stringify([...notConfusable]));
-  });
-  it("noop", () => {
-    expect(1).toBe(1);
+    expect([...missing]).toEqual([]);
+    expect([...notConfusable]).toEqual([]);
   });
 });

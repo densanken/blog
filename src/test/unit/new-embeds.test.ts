@@ -188,7 +188,6 @@ describe("Gist", () => {
       maxBytes: 1_000_000,
       headers: { authorization: "Bearer secret" },
     });
-    vi.unstubAllEnvs();
   });
   it("rejects unrelated URLs and truncated files", async () => {
     expect(await gist.fromUrl(new URL("https://gist.github.com.evil.test/user/abcdef"), reserve)).toBeUndefined();

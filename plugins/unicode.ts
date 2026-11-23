@@ -80,7 +80,13 @@ const cleanCharacters = (chars: string[], code = false) => {
 
 export const cleanUnicode = (input: string, code = false) => {
   const result = cleanCharacters(Array.from(input), code);
-  return { value: result.value, changed: result.changed };
+  if (code || !result.changed) return { value: result.value, changed: result.changed };
+  // ZWJ・ZWNJ を残すかは前後の文字で決めるため、その文字が取り除かれると判定が変わる（変化がなくなるまで繰り返す）
+  // 変化があれば 1 文字以上減るので、必ず終わる
+  let value = result.value;
+  for (let next = cleanCharacters(Array.from(value)); next.changed; next = cleanCharacters(Array.from(value)))
+    value = next.value;
+  return { value, changed: true };
 };
 
 export const cleanUrlUnicode = (input: string) => {

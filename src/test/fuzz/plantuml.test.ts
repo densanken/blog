@@ -734,11 +734,14 @@ describe("PlantUML source filter fuzz", () => {
       runs(60000)
     );
     console.log("PUML_REACHED", reached, "BYPASSES", JSON.stringify([...bypasses]));
+    // フィルターが拒否するはずの構文の送信は失敗にする（PlantUML の解釈が未確認のものは、調査の記録として出力だけする）
+    expect([...bypasses].filter(([why]) => why.startsWith("PLAIN"))).toEqual([]);
   }, 1_200_000);
 });
 
 describe("PlantUML robustness", () => {
   it("deep nesting and large SVG do not crash the build or take long", async () => {
+    const thrown: string[] = [];
     for (const [name, svg] of [
       ["deep g 20000", `<svg>${"<g>".repeat(20000)}${"</g>".repeat(20000)}</svg>`],
       ["deep g 200000", `<svg>${"<g>".repeat(200000)}</svg>`],
@@ -748,14 +751,16 @@ describe("PlantUML robustness", () => {
     ] as const) {
       const t = performance.now();
       let outcome = "converted";
+      // 図を拒否してコードのまま残すのは正常な動き、例外が外へ出るのは失敗
       try {
         const tree = await run(`@startuml\nA -> B: ${String(counter++)}\n@enduml`, svg);
         if ((tree.children[0] as Element).tagName === "pre") outcome = "left as code (rejected)";
       } catch (e) {
         outcome = `THROWN ${String(e).slice(0, 80)}`;
+        thrown.push(`${name}: ${outcome}`);
       }
       console.log("PUML_ROBUST", name, outcome, Math.round(performance.now() - t), "ms");
     }
-    expect(1).toBe(1);
+    expect(thrown).toEqual([]);
   }, 600_000);
 });

@@ -947,7 +947,7 @@ try {
   ]) {
     const block = page.locator(".code-block").filter({ has: page.locator("pre", { hasText: label }) });
     const link = block.locator("a").first();
-    assert.match(await link.locator(".url-host").innerText(), /xn--gogle-jye\.com/);
+    assert.match(await link.locator(".url-host").innerText(), /xn--gogle-jye\.test/);
     assert.match(await link.locator(".url-warning").innerText(), /接続先に注意/);
   }
   for (const width of [1280, 390]) {

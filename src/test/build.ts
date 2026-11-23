@@ -488,6 +488,7 @@ assert.deepEqual(directives.get("connect-src"), [
   "https://*.twimg.com",
   "https://www.google-analytics.com",
   "https://*.google-analytics.com",
+  "https://*.analytics.google.com",
   "https://www.googletagmanager.com",
 ]);
 assert.deepEqual(directives.get("frame-src"), [

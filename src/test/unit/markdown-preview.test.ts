@@ -8,8 +8,17 @@ import type { Root } from "hast";
 
 describe("Markdown preview", () => {
   it("does not let KaTeX emit arbitrary characters through \\char", async () => {
-    for (const source of ['$\\char"202E$', "$\\@char{8238}$", '$\\char"200B$'])
-      expect(await renderMarkdownPreview(source), source).not.toMatch(/[\u202e]|&#x202e;|&#8238;/i);
+    // U+200B は KaTeX が通常の数式にも出力するため、KaTeX が出力しない U+2060 で確かめる
+    for (const [source, forbidden] of [
+      ['$\\char"202E$', /\u202e|&#x202e;|&#8238;/i],
+      ["$\\@char{8238}$", /\u202e|&#x202e;|&#8238;/i],
+      ['$\\char"2060$', /\u2060|&#x2060;|&#8288;/i],
+    ] as const)
+      expect(await renderMarkdownPreview(source), source).not.toMatch(forbidden);
+  });
+  it("does not carry KaTeX macro definitions over to later previews", async () => {
+    await renderMarkdownPreview("$\\gdef\\frac#1#2{#1+#2}$");
+    expect(await renderMarkdownPreview("$\\frac{a}{b}$")).toContain("mfrac");
   });
   it.each(["\n", "\r\n"])("hides leading frontmatter with %j line endings", async (newline) => {
     const source = ["---", "title: はじめての記事", "date: 2026-01-01", "---", "", "本文"].join(newline);
