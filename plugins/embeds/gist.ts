@@ -10,8 +10,15 @@ export const gist: Embed = {
     const match = /^https:\/\/gist\.github\.com\/[\w-]+\/([a-f\d]+)\/?(?:[?#].*)?$/i.exec(url.href);
     if (!match) return;
     reserveFetch();
+    // 認証なしの API は IP ごとに 1 時間 60 回まで
+    const token = process.env.GITHUB_TOKEN;
     const data: unknown = JSON.parse(
-      (await safeFetch(`https://api.github.com/gists/${match[1]!}`, { maxBytes: 1_000_000 })).toString()
+      (
+        await safeFetch(`https://api.github.com/gists/${match[1]!}`, {
+          maxBytes: 1_000_000,
+          ...(token ? { headers: { authorization: `Bearer ${token}` } } : {}),
+        })
+      ).toString()
     );
     if (!data || typeof data !== "object" || !("files" in data) || !data.files || typeof data.files !== "object")
       throw new Error("不正な Gist です");

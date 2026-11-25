@@ -1,5 +1,4 @@
 import { toHtml } from "hast-util-to-html";
-import rehypeKatex from "rehype-katex";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -14,6 +13,7 @@ import { highlight } from "./highlight.ts";
 import anchorGuard, { anchorShape } from "./rehype-anchor-guard.ts";
 import callouts from "./rehype-callouts.ts";
 import externalLinks from "./rehype-external-links.ts";
+import katex from "./rehype-katex.ts";
 import { schema, unwrapLinks } from "./rehype-sanitize.ts";
 import unicodeCode from "./rehype-unicode-code.ts";
 import urlGuard from "./rehype-url-guard.ts";
@@ -52,7 +52,7 @@ const processor = unified()
   .use(urlGuard)
   .use(anchorGuard)
   .use(callouts)
-  .use(rehypeKatex);
+  .use(katex);
 
 const highlighter = createHighlighter({ themes: Object.values(highlight.theme), langs: [] });
 

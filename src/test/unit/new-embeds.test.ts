@@ -89,14 +89,16 @@ describe("Google Slides", () => {
 });
 
 describe("Twitch clips", () => {
-  it.each(["https://clips.twitch.tv/Funny-Clip", "https://www.twitch.tv/user/clip/Funny-Clip"])(
-    "converts %s",
-    async (url) => {
-      expect(JSON.stringify(await twitch.fromUrl(new URL(url), reserve))).toContain(
-        "https://clips.twitch.tv/embed?clip=Funny-Clip&parent=blog.densanken.com&parent=localhost&parent=127.0.0.1"
-      );
-    }
-  );
+  it.each([
+    "https://clips.twitch.tv/Funny-Clip",
+    "https://www.twitch.tv/user/clip/Funny-Clip",
+    "https://twitch.tv/user/clip/Funny-Clip",
+    "https://m.twitch.tv/user/clip/Funny-Clip",
+  ])("converts %s", async (url) => {
+    expect(JSON.stringify(await twitch.fromUrl(new URL(url), reserve))).toContain(
+      "https://clips.twitch.tv/embed?clip=Funny-Clip&parent=blog.densanken.com&parent=localhost&parent=127.0.0.1"
+    );
+  });
   it("normalizes iframe clips and discards supplied parents", async () => {
     const result = twitch.fromEmbedCode(
       [h("iframe", { src: "https://clips.twitch.tv/embed?clip=Funny-Clip_1&parent=example.com" })],
@@ -177,6 +179,15 @@ describe("Gist", () => {
     expect(JSON.stringify(tree)).not.toContain('"code":"left\u202e');
     expect(warning).toHaveBeenCalled();
     warning.mockRestore();
+  });
+  it("sends GITHUB_TOKEN only when it is set", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "secret");
+    vi.mocked(safeFetch).mockResolvedValueOnce(Buffer.from(JSON.stringify({ files: { "a.md": { content: "one" } } })));
+    await gist.fromUrl(new URL("https://gist.github.com/user/abcdef"), reserve);
+    expect(safeFetch).toHaveBeenLastCalledWith("https://api.github.com/gists/abcdef", {
+      maxBytes: 1_000_000,
+      headers: { authorization: "Bearer secret" },
+    });
   });
   it("rejects unrelated URLs and truncated files", async () => {
     expect(await gist.fromUrl(new URL("https://gist.github.com.evil.test/user/abcdef"), reserve)).toBeUndefined();

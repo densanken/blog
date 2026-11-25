@@ -84,7 +84,7 @@ export default defineNuxtConfig({
           [plugin("rehype-markdown-preview")]: {},
           [plugin("rehype-mdc-compat")]: { options: { contents } },
           [plugin("rehype-callouts")]: {},
-          "rehype-katex": {},
+          [plugin("rehype-katex")]: {},
           [plugin("rehype-mermaid")]: { options: { contents } },
           [plugin("rehype-plantuml")]: { options: { contents } },
           [plugin("rehype-svg-attributes")]: {},

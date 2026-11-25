@@ -17,10 +17,13 @@ jobs:
         check:
           - name: lint
             script: lint:check
-          - name: unit
-            script: test
           - name: format
             script: fmt:check
+          - name: unit
+            script: test
+          # fast-check が実行ごとにランダムな seed で入力を生成する（失敗したらメッセージの seed で再現する）
+          - name: fuzz
+            script: test:fuzz
           - name: e2e
             script: test:e2e
             browser: true

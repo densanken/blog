@@ -143,12 +143,21 @@ describe("PlantUML", () => {
     expect(safeFetch).toHaveBeenCalledOnce();
     expect(tree.children[0]).toMatchObject({ tagName: "svg" });
   });
+  it("permits dollar and percent signs in labels", async () => {
+    vi.mocked(safeFetch).mockResolvedValue(Buffer.from('<svg viewBox="0 0 10 10"><path d="M0 0"/></svg>'));
+    const tree: Root = { type: "root", children: [code("@startuml\nAlice -> Bob: $100 (50%d)\n@enduml")] };
+    await (
+      await setup()
+    )(tree, file);
+    expect(tree.children[0]).toMatchObject({ tagName: "svg" });
+  });
   it.each([
     "@startuml\n!include https://example.com/a\n@enduml",
     '@startuml\nAlice -> Bob: %load_json("/tmp/data.json")\n@enduml',
     '@startuml\nAlice -> Bob: %load_json("https" + "://example.com/data")\n@enduml',
     '@startuml\nAlice -> Bob: %load_json("ht" + "tps://example.com/data")\n@enduml',
     "@startuml\n$x = 1\n@enduml",
+    '@startuml\nAlice -> Bob: %load_json ("/tmp/data.json")\n@enduml',
     "@startuml\n!includesub /tmp/data!part\n@enduml",
     "@startuml\n!theme plain\n@enduml",
     "@startuml /tmp/output\nA -> B\n@enduml",

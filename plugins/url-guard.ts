@@ -75,7 +75,8 @@ export const inspectTextUrls = (value: string) => {
   const candidates = new Set<string>();
   for (const [url] of value.matchAll(/https?:[^\s<>"']+?(?=https?:|[\s<>"']|$)/gi)) {
     candidates.add(url);
-    candidates.add(url.replace(/[()[\]{}),.;!?（）［］｛｝【】「」『』、。！？]+$/u, ""));
+    // 末尾の記号（強調の * や _、コードの `、括弧、句読点など）を除いた候補も検査する
+    candidates.add(url.replace(/[\p{P}\p{S}]+$/u, ""));
   }
   const seen = new Set<string>();
   return [...candidates].flatMap((candidate) => {

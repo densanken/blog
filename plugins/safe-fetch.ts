@@ -72,10 +72,16 @@ const agent = new Agent({
 });
 
 // 1回の取得は、リダイレクト3回、タイムアウト15秒、本文 maxBytes まで
-const get = async (href: string, { maxBytes, truncate }: { maxBytes: number; truncate: boolean }) => {
+const get = async (
+  href: string,
+  { maxBytes, truncate, headers }: { maxBytes: number; truncate: boolean; headers: Record<string, string> }
+) => {
   const signal = AbortSignal.timeout(15_000);
+  const origin = new URL(href).origin;
   for (let redirects = 0; ; redirects++) {
     const url = new URL(href);
+    // 認証の情報を、別のオリジンへのリダイレクト先に送らない
+    if (url.origin !== origin) headers = {};
     if (!/^https?:$/.test(url.protocol) || !["", "80", "443"].includes(url.port)) {
       throw new Error(`取得できない URL です: ${url.href}`);
     }
@@ -85,7 +91,7 @@ const get = async (href: string, { maxBytes, truncate }: { maxBytes: number; tru
       dispatcher: agent,
       redirect: "manual",
       signal,
-      headers: { "user-agent": "Mozilla/5.0 (compatible; CCSBlogBuilder/1.0)" },
+      headers: { ...headers, "user-agent": "Mozilla/5.0 (compatible; CCSBlogBuilder/1.0)" },
     });
     const location = response.headers.get("location");
     if (response.status >= 300 && response.status < 400 && location) {
@@ -123,15 +129,23 @@ const cache = new Map<string, Promise<Buffer>>();
 
 // http(s) の URL だけを取得する
 // 本文が maxBytes を超えた場合は、truncate が true なら前半だけを返し、false なら失敗にする
-export const safeFetch = (href: string, { maxBytes, truncate = false }: { maxBytes: number; truncate?: boolean }) => {
-  const key = JSON.stringify([href, maxBytes, truncate]);
+// headers は最初の URL と同じオリジンにだけ送る
+export const safeFetch = (
+  href: string,
+  {
+    maxBytes,
+    truncate = false,
+    headers = {},
+  }: { maxBytes: number; truncate?: boolean; headers?: Record<string, string> }
+) => {
+  const key = JSON.stringify([href, maxBytes, truncate, Object.keys(headers)]);
   const cached = cache.get(key);
   if (cached) return cached;
   const request = (async () => {
     if (running >= maxConcurrent) await new Promise<void>((resolve) => waiting.push(resolve));
     else running++;
     try {
-      return await get(href, { maxBytes, truncate });
+      return await get(href, { maxBytes, truncate, headers });
     } finally {
       const next = waiting.shift();
       if (next) next();

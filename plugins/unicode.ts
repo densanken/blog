@@ -80,10 +80,16 @@ const cleanCharacters = (chars: string[], code = false) => {
 
 export const cleanUnicode = (input: string, code = false) => {
   const result = cleanCharacters(Array.from(input), code);
-  return { value: result.value, changed: result.changed };
+  if (code || !result.changed) return { value: result.value, changed: result.changed };
+  // ZWJ・ZWNJ を残すかは前後の文字で決めるため、その文字が取り除かれると判定が変わる（変化がなくなるまで繰り返す）
+  // 変化があれば 1 文字以上減るので、必ず終わる
+  let value = result.value;
+  for (let next = cleanCharacters(Array.from(value)); next.changed; next = cleanCharacters(Array.from(value)))
+    value = next.value;
+  return { value, changed: true };
 };
 
-export const cleanUrlUnicode = (input: string) => {
+const cleanUrlOnce = (input: string) => {
   const units: { value: string; raw: string }[] = [];
   for (let i = 0; i < input.length;) {
     const first = input[i] === "%" ? /^%([\da-f]{2})/i.exec(input.slice(i, i + 3)) : null;
@@ -124,18 +130,39 @@ export const cleanUrlUnicode = (input: string) => {
   };
 };
 
-export const cleanTextUnicode = (value: string) => {
-  const entities = value.replace(
-    /&#(?:x([\da-f]+)|(\d+));/gi,
-    (entity, hex: string | undefined, decimal: string | undefined) => {
-      const cp = Number.parseInt(hex ?? decimal ?? "", hex ? 16 : 10);
-      if (!Number.isFinite(cp) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return entity;
-      if (cp === 0x200c || cp === 0x200d || (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0000 && cp <= 0xe01ef))
-        return entity;
-      const character = String.fromCodePoint(cp);
-      return cleanUnicode(character).changed ? "" : entity;
-    }
-  );
+export const cleanUrlUnicode = (input: string) => {
+  // 取り除いた文字で、前後の文字の判定や、パーセントエンコードの組み合わせが変わるため、変化がなくなるまで繰り返す
+  let result = cleanUrlOnce(input);
+  if (!result.changed) return result;
+  for (let next = cleanUrlOnce(result.value); next.changed; next = cleanUrlOnce(result.value))
+    result = { value: next.value, changed: true };
+  return result;
+};
+
+// 文字参照を取り除くと、前の「&」と後ろの「#x202e;」がつながって新しい文字参照になることがある
+// 出力の末尾で文字参照が完成するたびに判定するので、連鎖しても 1 回の走査で取り除ける
+const removeEntities = (value: string) => {
+  const output: string[] = [];
+  for (const ch of value) {
+    output.push(ch);
+    if (ch !== ";") continue;
+    let start = output.length - 2;
+    while (start >= 0 && /[\da-f]/i.test(output[start]!)) start--;
+    const hex = output[start] === "x" || output[start] === "X";
+    const digits = output.slice(start + 1, -1).join("");
+    if (hex) start--;
+    if (!digits || output[start] !== "#" || output[start - 1] !== "&") continue;
+    if (!hex && !/^\d+$/.test(digits)) continue;
+    const cp = Number.parseInt(digits, hex ? 16 : 10);
+    if (!Number.isFinite(cp) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) continue;
+    if (cp === 0x200c || cp === 0x200d || (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0000 && cp <= 0xe01ef)) continue;
+    if (cleanUnicode(String.fromCodePoint(cp)).changed) output.length = start - 1;
+  }
+  return output.join("");
+};
+
+const cleanTextOnce = (value: string) => {
+  const entities = removeEntities(value);
   let result = "";
   let offset = 0;
   let changed = entities !== value;
@@ -148,6 +175,16 @@ export const cleanTextUnicode = (value: string) => {
   }
   const tail = cleanUnicode(entities.slice(offset));
   return { value: result + tail.value, changed: changed || tail.changed };
+};
+
+export const cleanTextUnicode = (value: string) => {
+  // 取り除いた文字（URL の区切りになる U+FEFF など）で URL の範囲が変わり、判定が変わることがあるため、変化がなくなるまで繰り返す
+  // 変化があれば文字列が短くなるので、必ず終わる
+  let result = cleanTextOnce(value);
+  if (!result.changed) return result;
+  for (let next = cleanTextOnce(result.value); next.changed; next = cleanTextOnce(result.value))
+    result = { value: next.value, changed: true };
+  return result;
 };
 
 export const cleanYamlSource = (source: string) => {

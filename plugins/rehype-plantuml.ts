@@ -241,7 +241,8 @@ export default ({ contents, cacheDir = resolve(".cache/plantuml") }: { contents:
           ) {
             throw new Error("対応する開始タグと終了タグが必要です");
           }
-          if (/^\s*!|[%$][\w{]|\[\[|(?:https?|file):|<img\b/im.test(source)) {
+          // 変数の代入（行頭の $）と組み込み関数の呼び出し（%name(）だけを拒否し、ラベルの $100 や %d は通す
+          if (/^\s*!|^\s*\$\w|%\w+\s*\(|\[\[|(?:https?|file):|<img\b/im.test(source)) {
             throw new Error("プリプロセッサ、外部読み込みやリンクは使えません");
           }
           const response = await fetchSvg(source).catch((error: unknown) => {

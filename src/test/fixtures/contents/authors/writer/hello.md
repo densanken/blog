@@ -173,15 +173,15 @@ Icon 2xl: :icon{name="square-letter-a" size="2xl"}
 
 Icon fixture :icon{name="rocket"} and :icon{name="circle-check" label="Lucideonlytoken"}.
 
-```text [a-very-long-filename-for-testing-visible-connection-warning-guard.txt] href=https://gоogle.com
+```text [a-very-long-filename-for-testing-visible-connection-warning-guard.txt] href=https://gоogle.test
 filename guard text
 ```
 
-```md [a-very-long-filename-for-testing-visible-connection-warning-guard.md] href=https://gоogle.com
+```md [a-very-long-filename-for-testing-visible-connection-warning-guard.md] href=https://gоogle.test
 filename guard markdown
 ```
 
-```md [a-very-long-filename-for-testing-visible-connection-warning-linked.md] tab href=https://gоogle.com
+```md [a-very-long-filename-for-testing-visible-connection-warning-linked.md] tab href=https://gоogle.test
 filename guard group
 ```
 
@@ -189,7 +189,7 @@ filename guard group
 other group text
 ```
 
-```text [a-very-long-filename-for-testing-visible-connection-warning-group.txt] tab href=https://gоogle.com
+```text [a-very-long-filename-for-testing-visible-connection-warning-group.txt] tab href=https://gоogle.test
 filename guard plain tab
 ```
 

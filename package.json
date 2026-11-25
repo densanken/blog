@@ -18,6 +18,7 @@
     "test": "vitest run src/test/unit",
     "test:build": "node src/test/build.ts",
     "test:e2e": "pnpm test:build && node src/test/e2e.ts",
+    "test:fuzz": "vitest run --config src/test/fuzz/vitest.config.ts",
     "postinstall": "nuxt prepare",
     "prepare": "git config --local push.recurseSubmodules check"
   },
@@ -75,6 +76,8 @@
     "@types/node": "^26.6.6",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.10.3",
+    "hast-util-from-html": "^2.1.0",
     "hast-util-sanitize": "^5.0.2",
     "lefthook": "^2.2.2",
     "oxfmt": "^0.79.0",

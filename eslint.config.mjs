@@ -32,5 +32,10 @@ export default withNuxt(
       "@typescript-eslint/no-use-before-define": "error",
     },
   },
+  {
+    // fuzzing の入力は、意図的に制御文字やゼロ幅文字を含み、実行回数などを出力する
+    files: ["src/test/fuzz/**/*.ts"],
+    rules: { "no-console": "off", "no-control-regex": "off", "no-irregular-whitespace": "off" },
+  },
   prettier
 );
