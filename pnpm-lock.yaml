@@ -285,7 +285,7 @@ importers:
         version: 4.6.0
       simple-icons:
         specifier: ^16.38.0
-        version: 16.38.0
+        version: 16.38.1
       undici:
         specifier: ^8.12.4
         version: 8.12.4
@@ -5840,8 +5840,8 @@ packages:
   simple-get@4.0.1:
     resolution: {integrity: sha512-brv7p5WgH0jmQJr1ZDDfKDOSeWWg+OVypG99A/5vYGPqJ6pxiaHLy8nxtFjBA7oMa01ebA9gfh1uMCFqOuXxvA==}
 
-  simple-icons@16.38.0:
-    resolution: {integrity: sha512-B0Wws90eL0Fm65aH35CA8kM+7/Zzgsaytt0DndBx7VFm3+o9HurVIVRQZ1hvqqYYIyNJq7ycn3kQm2v2FhiWSQ==}
+  simple-icons@16.38.1:
+    resolution: {integrity: sha512-q4JnGp1cgeASp4jzEsmSh/7BD/e2y7aYO8XST+QBEvOJ5wzZ/9WRmKsI+QUwkfPUSiXC+sfh2+QetD38zl3N0g==}
     engines: {node: '>=0.12.18'}
 
   sirv@3.0.2:
@@ -13373,7 +13373,7 @@ snapshots:
       once: 1.4.0
       simple-concat: 1.0.1
 
-  simple-icons@16.38.0: {}
+  simple-icons@16.38.1: {}
 
   sirv@3.0.2:
     dependencies:
