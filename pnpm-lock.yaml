@@ -187,7 +187,7 @@ importers:
     dependencies:
       '@lucide/vue':
         specifier: ^1.75.0
-        version: 1.77.0(vue@3.5.46(typescript@6.0.3))
+        version: 1.78.0(vue@3.5.46(typescript@6.0.3))
       '@nuxt/content':
         specifier: ^3.17.0
         version: 3.17.0(@nuxt/schema@4.6.4)(@oxc-project/types@0.156.0)(confbox@0.3.2)(dotenv@17.4.2)(esbuild@0.28.2)(giget@3.3.1)(magic-string@1.4.5)(magicast@0.5.5)(mlly@1.8.2)(oxc-parser@0.153.0)(rolldown@1.2.19)(rollup@4.68.7)(supports-color@10.2.2)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
@@ -232,7 +232,7 @@ importers:
         version: 9.0.3
       lucide:
         specifier: ^1.75.0
-        version: 1.77.0
+        version: 1.78.0
       mdast-util-to-string:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1033,8 +1033,8 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@lucide/vue@1.77.0':
-    resolution: {integrity: sha512-B+okr/d8qC2imLzNPJ5tW8Nf7uKC19DgiOafxU0bOMfLnkd5Tkss4GW640+s5FierTJjgl99LpuO40u+yni0qQ==}
+  '@lucide/vue@1.78.0':
+    resolution: {integrity: sha512-yIh9Fv8cuPRuUmo6fTBlhWfUdl8v9IEnV9Fge29d79WEpbWOMu5XfcwAveLfjFe47HfAfNcJF10sXAzwaZfWRg==}
     peerDependencies:
       vue: '>=3.0.1'
 
@@ -4739,8 +4739,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide@1.77.0:
-    resolution: {integrity: sha512-DqoScWUEDcTC0KXPKKlZIIdOE++crPcGAQ60KfBNiT+Aq0sgQtxY/1sBCKBzLLo2yLLhYUperyUGHV5PwlBaIQ==}
+  lucide@1.78.0:
+    resolution: {integrity: sha512-4lMWPv+OZGL1N2jkTNGjw86Rd3+4gyCdBHHXw+emfCvbQEojOPwPQo20y4SEUxy5ZBc3IDp3KC1vA7PPiuLbQA==}
 
   magic-regexp@0.11.2:
     resolution: {integrity: sha512-s4i7mq2jJnkB5J1HDX67GmdRoWrgo8tE0cL91bKO+HaquxyR5TiqkjVfLhgS2PXretsN/Gv9kSnRBgQxrLO/Qw==}
@@ -7476,7 +7476,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@lucide/vue@1.77.0(vue@3.5.46(typescript@6.0.3))':
+  '@lucide/vue@1.78.0(vue@3.5.46(typescript@6.0.3))':
     dependencies:
       vue: 3.5.46(typescript@6.0.3)
 
@@ -8264,8 +8264,6 @@ snapshots:
       nuxt-site-config: 5.0.3(1401533958807dd7870aa1075831991f)
       nuxtseo-shared: 6.0.4(549b2896b9307f44e1cb951438042c3f)
       ufo: 1.6.4
-    optionalDependencies:
-      zod: 3.25.76
     transitivePeerDependencies:
       - '@nuxt/schema'
       - confbox
@@ -8295,8 +8293,6 @@ snapshots:
       sitemapd: 0.2.3
       ufo: 1.6.4
       ultrahtml: 1.7.0
-    optionalDependencies:
-      zod: 3.25.76
     transitivePeerDependencies:
       - '@nuxt/schema'
       - '@oxc-project/types'
@@ -11559,7 +11555,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide@1.77.0: {}
+  lucide@1.78.0: {}
 
   magic-regexp@0.11.2(esbuild@0.28.2)(rolldown@1.2.19)(rollup@4.68.7)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)):
     dependencies:
@@ -12316,7 +12312,6 @@ snapshots:
       playwright-core: 1.65.1
       sharp: 0.35.5(@types/node@26.6.6)
       unifont: 1.0.3
-      zod: 3.25.76
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@nuxt/schema'
