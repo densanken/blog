@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+    <id>https://blog.densanken.com/</id>
+    <title>CCSブログ</title>
+    <updated>2026-11-25T15:00:00.000Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://blog.densanken.com/"/>
+    <link rel="self" href="https://blog.densanken.com/feed.xml"/>
+    <subtitle>CCS（千葉大学電子計算機研究会）のメンバーなどが自由気ままに書くブログです。</subtitle>
+    <rights>千葉大学電子計算機研究会</rights>
+    <entry>
+        <title type="html"><![CDATA[goto]]></title>
+        <id>https://blog.densanken.com/@goto9275/introduction/</id>
+        <link href="https://blog.densanken.com/@goto9275/introduction/"/>
+        <link rel="enclosure" href="https://blog.densanken.com/_og/s/o_69006b688fed28c0.png" type="image/png"/>
+        <updated>2026-11-25T15:00:00.000Z</updated>
+        <summary type="html"><![CDATA[ここで一句]]></summary>
+        <author>
+            <name>goto</name>
+            <uri>https://blog.densanken.com/@goto9275/</uri>
+            <media:thumbnail url="https://blog.densanken.com/_cards/d444d8b333d70731.webp"/>
+        </author>
+        <published>2026-11-24T15:00:00.000Z</published>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[NANDがあれば何でもできる！(激うまギャグ)]]></title>
+        <id>https://blog.densanken.com/@goto9275/nand/</id>
+        <link href="https://blog.densanken.com/@goto9275/nand/"/>
+        <link rel="enclosure" href="https://blog.densanken.com/_og/s/o_4fb9feb6e7b75bd2.png" type="image/png"/>
+        <updated>2026-11-25T15:00:00.000Z</updated>
+        <summary type="html"><![CDATA[うまくない]]></summary>
+        <author>
+            <name>goto</name>
+            <uri>https://blog.densanken.com/@goto9275/</uri>
+            <media:thumbnail url="https://blog.densanken.com/_cards/d444d8b333d70731.webp"/>
+        </author>
+        <published>2026-11-24T15:00:00.000Z</published>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[アドベントカレンダー一覧]]></title>
+        <id>https://blog.densanken.com/@densanken/advent-calendars/</id>
+        <link href="https://blog.densanken.com/@densanken/advent-calendars/"/>
+        <link rel="enclosure" href="https://blog.densanken.com/_og/s/o_e8b6b87bb657f4b5.png" type="image/png"/>
+        <updated>2026-11-22T15:00:00.000Z</updated>
+        <summary type="html"><![CDATA[これまでのCCSアドベントカレンダーへのリンク一覧です。]]></summary>
+        <author>
+            <name>CCS</name>
+            <uri>https://blog.densanken.com/@densanken/</uri>
+            <media:thumbnail url="https://blog.densanken.com/_cards/8499b884e5dd57e3.webp"/>
+        </author>
+        <published>2026-11-22T15:00:00.000Z</published>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[テスト投稿]]></title>
+        <id>https://blog.densanken.com/@hiryuN/test-post/</id>
+        <link href="https://blog.densanken.com/@hiryuN/test-post/"/>
+        <link rel="enclosure" href="https://blog.densanken.com/_og/s/o_e8a5431678c8ca65.png" type="image/png"/>
+        <updated>2026-11-22T15:00:00.000Z</updated>
+        <summary type="html"><![CDATA[ブログ投稿のテストです。]]></summary>
+        <author>
+            <name>hiryuN</name>
+            <uri>https://blog.densanken.com/@hiryuN/</uri>
+            <media:thumbnail url="https://blog.densanken.com/_cards/6cea59930de2912e.webp"/>
+        </author>
+        <published>2026-11-22T15:00:00.000Z</published>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Markdown 構文サンプル]]></title>
+        <id>https://blog.densanken.com/@densanken/markdown-syntax-sample/</id>
+        <link href="https://blog.densanken.com/@densanken/markdown-syntax-sample/"/>
+        <link rel="enclosure" href="https://blog.densanken.com/_og/s/o_0486ecc38ea6ed6d.png" type="image/png"/>
+        <updated>2026-11-21T15:00:00.000Z</updated>
+        <summary type="html"><![CDATA[このブログで利用できる Markdown 構文と現在の表示を確認できるページです。]]></summary>
+        <author>
+            <name>CCS</name>
+            <uri>https://blog.densanken.com/@densanken/</uri>
+            <media:thumbnail url="https://blog.densanken.com/_cards/8499b884e5dd57e3.webp"/>
+        </author>
+        <published>2026-11-19T15:00:00.000Z</published>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[投稿ガイドライン]]></title>
+        <id>https://blog.densanken.com/@densanken/posting-guidelines/</id>
+        <link href="https://blog.densanken.com/@densanken/posting-guidelines/"/>
+        <link rel="enclosure" href="https://blog.densanken.com/_og/s/o_9a6270d8fd3f95b6.png" type="image/png"/>
+        <updated>2026-11-21T15:00:00.000Z</updated>
+        <summary type="html"><![CDATA[このブログへの投稿方法とガイドラインです。]]></summary>
+        <author>
+            <name>CCS</name>
+            <uri>https://blog.densanken.com/@densanken/</uri>
+            <media:thumbnail url="https://blog.densanken.com/_cards/8499b884e5dd57e3.webp"/>
+        </author>
+        <published>2026-11-14T15:00:00.000Z</published>
+    </entry>
+</feed>

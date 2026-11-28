@@ -1,0 +1,2 @@
+//# allFunctionsCalledOnLoad
+import{P as e,W as t,X as n,gt as r,j as i,nt as a}from"#entry";import{t as o}from"./D5bbE0X1.js";var s=n({__name:`[page]`,setup(n){let s=i(),c=String(s.params.page),l=Number(c);if(!/^[1-9]\d*$/.test(c)||l<2)throw e({status:404,statusText:`Page not found`,fatal:!0});return(e,n)=>(a(),t(o,{"author-id":r(s).params.author,page:r(l)},null,8,[`author-id`,`page`]))}});export{s as default};

@@ -1,0 +1,2 @@
+//# allFunctionsCalledOnLoad
+import{P as e,W as t,X as n,gt as r,j as i,nt as a}from"#entry";import{t as o}from"./iV3XOaGp.js";var s=n({__name:`[page]`,setup(n){let s=String(i().params.page),c=Number(s);if(!/^[1-9]\d*$/.test(s)||c<2)throw e({status:404,statusText:`Page not found`,fatal:!0});return(e,n)=>(a(),t(o,{page:r(c)},null,8,[`page`]))}});export{s as default};

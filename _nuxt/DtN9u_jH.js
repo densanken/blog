@@ -1,0 +1,1 @@
+import{K as e,nt as t}from"#entry";import{t as n}from"./BmP83cE4.js";var r={};function i(n,r){return t(),e(`hr`)}var a=Object.assign(n(r,[[`render`,i]]),{__name:`ProseHr`});export{a as default};

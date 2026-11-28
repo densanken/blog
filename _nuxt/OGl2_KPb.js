@@ -1,0 +1,2 @@
+//# allFunctionsCalledOnLoad
+import{W as e,X as t,nt as n}from"#entry";import"./DeQLt7Sg.js";import{t as r}from"./iV3XOaGp.js";var i=t({__name:`index`,async setup(t){return(t,i)=>(n(),e(r,{page:1}))}});export{i as default};

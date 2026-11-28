@@ -1,0 +1,2 @@
+//# allFunctionsCalledOnLoad
+import{W as e,X as t,gt as n,j as r,nt as i}from"#entry";import{t as a}from"./D5bbE0X1.js";var o=t({__name:`index`,setup(t){let o=r().params.author;return(t,r)=>(i(),e(a,{"author-id":n(o),page:1},null,8,[`author-id`]))}});export{o as default};
