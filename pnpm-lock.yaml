@@ -187,7 +187,7 @@ importers:
     dependencies:
       '@lucide/vue':
         specifier: ^1.75.0
-        version: 1.79.0(vue@3.5.46(typescript@6.0.3))
+        version: 1.80.0(vue@3.5.46(typescript@6.0.3))
       '@nuxt/content':
         specifier: ^3.17.0
         version: 3.17.0(@nuxt/schema@4.7.0)(@oxc-project/types@0.156.0)(confbox@0.3.2)(dotenv@17.4.2)(esbuild@0.28.2)(giget@3.3.1)(magic-string@1.4.5)(magicast@0.5.5)(mlly@1.8.2)(oxc-parser@0.155.0)(rolldown@1.2.19)(rollup@4.68.8)(supports-color@10.2.2)(vite@8.3.8(@types/node@26.6.7)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
@@ -232,7 +232,7 @@ importers:
         version: 9.0.3
       lucide:
         specifier: ^1.75.0
-        version: 1.79.0
+        version: 1.80.0
       mdast-util-to-string:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1040,8 +1040,8 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@lucide/vue@1.79.0':
-    resolution: {integrity: sha512-Qe9DrDeNmIPbClkaOzUC9gW0czx1J3YFmk8ua7CDEByY/JZ7CB4v1s9Ps6lLbuxOSQVLnC8LBei+lS9qI5X0iw==}
+  '@lucide/vue@1.80.0':
+    resolution: {integrity: sha512-vNJr1C3Jx8yUkdTXFYx1iMQ73wkK/opZlTl6mLpvBykXdf5TE9alpfbLfGC4gzrkPV5Ra+YRsUS4TVGJFPASCA==}
     peerDependencies:
       vue: '>=3.0.1'
 
@@ -5037,8 +5037,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide@1.79.0:
-    resolution: {integrity: sha512-y96g6/Pca8ZoMt1F8P2K3T5t1ABrFDeJW5h7IM2CyAGton1lbdMzHn4u0qAGI0j9nZ2OArUTqekDZyBTW2pRUQ==}
+  lucide@1.80.0:
+    resolution: {integrity: sha512-3tsjW2GIkBNMYHlpnOUA4bP5jAh20iRHksM92tSsCzu24BktkK103HJfOqPybqJtDgYnY5NEf6LEyBiq0N+KjA==}
 
   magic-regexp@0.11.2:
     resolution: {integrity: sha512-s4i7mq2jJnkB5J1HDX67GmdRoWrgo8tE0cL91bKO+HaquxyR5TiqkjVfLhgS2PXretsN/Gv9kSnRBgQxrLO/Qw==}
@@ -7782,7 +7782,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@lucide/vue@1.79.0(vue@3.5.46(typescript@6.0.3))':
+  '@lucide/vue@1.80.0(vue@3.5.46(typescript@6.0.3))':
     dependencies:
       vue: 3.5.46(typescript@6.0.3)
 
@@ -12219,7 +12219,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide@1.79.0: {}
+  lucide@1.80.0: {}
 
   magic-regexp@0.11.2(esbuild@0.28.2)(rolldown@1.2.19)(rollup@4.68.8)(vite@8.3.8(@types/node@26.6.7)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)):
     dependencies:
